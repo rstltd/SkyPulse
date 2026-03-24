@@ -63,3 +63,6 @@ skypulse:
       alert: "0 */10 * * * *"
   backfill:
     enabled: false
+  security:
+    api-key: ${SKYPULSE_API_KEY:}
+    admin-key: ${SKYPULSE_ADMIN_KEY:}

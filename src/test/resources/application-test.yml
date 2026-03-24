@@ -14,3 +14,6 @@ skypulse:
     api-key: test-key
   backfill:
     enabled: false
+  security:
+    api-key: test-api-key
+    admin-key: test-admin-key

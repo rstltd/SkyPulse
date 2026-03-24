@@ -8,13 +8,17 @@ import com.rstltd.skypulse.domain.spaceweather.KpIndexRecord;
 import com.rstltd.skypulse.domain.spaceweather.SolarWindRecord;
 import com.rstltd.skypulse.domain.spaceweather.SpaceWeatherAlert;
 import com.rstltd.skypulse.service.SpaceWeatherService;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/spaceweather")
+@Validated
 public class SpaceWeatherController {
 
     private final SpaceWeatherService spaceWeatherService;
@@ -32,9 +36,9 @@ public class SpaceWeatherController {
 
     @GetMapping("/kp/history")
     public ApiResponse<PagedResponse<KpIndexRecord>> getKpHistory(
-            @RequestParam(defaultValue = "72") int hours,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
+            @RequestParam(defaultValue = "72") @Min(1) @Max(8760) int hours,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "100") @Min(1) @Max(500) int size) {
         return ApiResponse.ok(PagedResponse.from(
                 spaceWeatherService.getKpHistoryPaged(hours, PageRequest.of(page, size))));
     }
@@ -48,9 +52,9 @@ public class SpaceWeatherController {
 
     @GetMapping("/dst/history")
     public ApiResponse<PagedResponse<DstIndexRecord>> getDstHistory(
-            @RequestParam(defaultValue = "72") int hours,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
+            @RequestParam(defaultValue = "72") @Min(1) @Max(8760) int hours,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "100") @Min(1) @Max(500) int size) {
         return ApiResponse.ok(PagedResponse.from(
                 spaceWeatherService.getDstHistoryPaged(hours, PageRequest.of(page, size))));
     }

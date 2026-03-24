@@ -3,12 +3,11 @@ services:
     image: timescale/timescaledb:latest-pg16
     container_name: skypulse-db
     restart: unless-stopped
-    ports:
-      - "5432:5432"
+    # No ports exposed — database only accessible from app container via Docker network
     environment:
       POSTGRES_DB: skypulse
       POSTGRES_USER: skypulse
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
@@ -30,8 +29,10 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/skypulse
       SPRING_DATASOURCE_USERNAME: skypulse
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      CWA_API_KEY: ${CWA_API_KEY}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      CWA_API_KEY: ${CWA_API_KEY:?CWA_API_KEY is required}
+      SKYPULSE_API_KEY: ${SKYPULSE_API_KEY:?SKYPULSE_API_KEY is required}
+      SKYPULSE_ADMIN_KEY: ${SKYPULSE_ADMIN_KEY:?SKYPULSE_ADMIN_KEY is required}
     depends_on:
       postgres:
         condition: service_healthy
