@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/skypulse
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+
+logging:
+  level:
+    com.rstltd.skypulse: INFO
+    root: WARN

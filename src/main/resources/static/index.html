@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyPulse 天脈 — 系統監控</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+        .header { background: #1e293b; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+        .header h1 { font-size: 20px; font-weight: 600; }
+        .header h1 span { color: #38bdf8; }
+        .update-time { color: #94a3b8; font-size: 13px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        .card { background: #1e293b; border-radius: 10px; padding: 20px; border: 1px solid #334155; }
+        .card-title { font-size: 14px; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .card.full { grid-column: 1 / -1; }
+
+        /* GNSS Quality */
+        .gnss-quality { display: flex; align-items: center; gap: 20px; }
+        .quality-badge { padding: 8px 20px; border-radius: 8px; font-size: 22px; font-weight: 700; }
+        .quality-NORMAL { background: #166534; color: #4ade80; }
+        .quality-CAUTION { background: #854d0e; color: #facc15; }
+        .quality-DEGRADED { background: #9a3412; color: #fb923c; }
+        .quality-SEVERE { background: #991b1b; color: #f87171; }
+        .quality-metrics { display: flex; gap: 24px; }
+        .metric { text-align: center; }
+        .metric-value { font-size: 24px; font-weight: 600; }
+        .metric-label { font-size: 12px; color: #94a3b8; }
+
+        /* Collector Table */
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; color: #94a3b8; font-weight: 500; font-size: 12px; padding: 8px 12px; border-bottom: 1px solid #334155; }
+        td { padding: 10px 12px; border-bottom: 1px solid #1e293b; font-size: 14px; }
+        tr:hover td { background: #334155; }
+        .status-SUCCESS, .status-EMPTY { color: #4ade80; }
+        .status-FAILURE { color: #f87171; }
+        .time-ago { color: #94a3b8; }
+
+        /* Earthquake & Alert lists */
+        .event-list { list-style: none; }
+        .event-list li { padding: 10px 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; }
+        .event-list li:last-child { border-bottom: none; }
+        .event-mag { font-weight: 700; color: #fb923c; min-width: 50px; }
+        .event-time { color: #94a3b8; font-size: 13px; }
+        .event-source { background: #334155; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+        .empty-message { color: #64748b; font-style: italic; padding: 10px 0; }
+
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><span>SkyPulse</span> 天脈 — 系統監控</h1>
+        <div class="update-time" id="updateTime">Loading...</div>
+    </div>
+
+    <div class="grid">
+        <!-- GNSS Quality -->
+        <div class="card full">
+            <div class="card-title">GNSS 品質指標</div>
+            <div class="gnss-quality">
+                <div class="quality-badge" id="qualityBadge">--</div>
+                <div class="quality-metrics">
+                    <div class="metric"><div class="metric-value" id="kpValue">--</div><div class="metric-label">Kp Index</div></div>
+                    <div class="metric"><div class="metric-value" id="dstValue">--</div><div class="metric-label">Dst (nT)</div></div>
+                    <div class="metric"><div class="metric-value" id="windSpeed">--</div><div class="metric-label">Solar Wind (km/s)</div></div>
+                    <div class="metric"><div class="metric-value" id="bzValue">--</div><div class="metric-label">Bz (nT)</div></div>
+                </div>
+                <div style="flex:1; text-align:right;">
+                    <div id="recommendation" style="color:#94a3b8; font-size:13px;"></div>
+                    <div id="assessment" style="color:#64748b; font-size:12px; margin-top:4px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Collectors -->
+        <div class="card full">
+            <div class="card-title">資料收集器狀態</div>
+            <table>
+                <thead><tr><th>收集器</th><th>狀態</th><th>上次執行</th><th>收集筆數</th><th>耗時</th></tr></thead>
+                <tbody id="collectorTable"><tr><td colspan="5" class="empty-message">等待資料...</td></tr></tbody>
+            </table>
+        </div>
+
+        <!-- Earthquakes -->
+        <div class="card">
+            <div class="card-title">最近地震 (7天)</div>
+            <ul class="event-list" id="earthquakeList"><li class="empty-message">等待資料...</li></ul>
+        </div>
+
+        <!-- Alerts -->
+        <div class="card">
+            <div class="card-title">活躍警報 (24h)</div>
+            <ul class="event-list" id="alertList"><li class="empty-message">等待資料...</li></ul>
+        </div>
+    </div>
+
+    <script>
+        const API = '';
+
+        function timeAgo(dateStr) {
+            if (!dateStr) return '--';
+            const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+            if (diff < 60) return Math.floor(diff) + 's ago';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            return Math.floor(diff / 86400) + 'd ago';
+        }
+
+        function fmt(v) { return v != null ? v : '--'; }
+
+        const COLLECTOR_NAMES = {
+            'CWA_RAINFALL': 'CWA 雨量', 'CWA_WEATHER': 'CWA 氣象',
+            'CWA_EARTHQUAKE': 'CWA 地震', 'CWA_ALERT': 'CWA 警報',
+            'CWA_FORECAST': 'CWA 預報', 'SWPC_KP_INDEX': 'SWPC Kp',
+            'SWPC_DST_INDEX': 'SWPC Dst', 'SWPC_SOLAR_WIND': 'SWPC 太陽風',
+            'SWPC_ALERT': 'SWPC 警報', 'USGS_EARTHQUAKE': 'USGS 地震',
+            'WRA_WATER_LEVEL': 'WRA 水位', 'WRA_RESERVOIR': 'WRA 水庫'
+        };
+
+        async function fetchJson(url) {
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                return data.success ? data.data : null;
+            } catch (e) { return null; }
+        }
+
+        async function updateGnssQuality() {
+            const data = await fetchJson(API + '/api/v1/spaceweather/gnss-quality');
+            if (!data) return;
+            const badge = document.getElementById('qualityBadge');
+            badge.textContent = data.qualityLevel || '--';
+            badge.className = 'quality-badge quality-' + (data.qualityLevel || '');
+            document.getElementById('kpValue').textContent = fmt(data.kpIndex);
+            document.getElementById('dstValue').textContent = fmt(data.dstIndex);
+            document.getElementById('windSpeed').textContent = fmt(data.solarWindSpeed);
+            document.getElementById('bzValue').textContent = fmt(data.bzComponent);
+            document.getElementById('recommendation').textContent = data.recommendation || '';
+            document.getElementById('assessment').textContent = data.assessment || '';
+        }
+
+        async function updateCollectors() {
+            const data = await fetchJson(API + '/api/v1/system/collectors');
+            const tbody = document.getElementById('collectorTable');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-message">尚無收集器運行紀錄</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(c => `<tr>
+                <td>${COLLECTOR_NAMES[c.source] || c.source}</td>
+                <td class="status-${c.status}">${c.status === 'SUCCESS' ? '✓' : c.status === 'EMPTY' ? '○' : '✗'} ${c.status}</td>
+                <td class="time-ago">${timeAgo(c.lastRunTime)}</td>
+                <td>${c.persistedCount} / ${c.fetchedCount}</td>
+                <td>${c.durationMs}ms</td>
+            </tr>`).join('');
+        }
+
+        async function updateEarthquakes() {
+            const data = await fetchJson(API + '/api/v1/seismic/events/latest');
+            const list = document.getElementById('earthquakeList');
+            if (!data || data.length === 0) {
+                list.innerHTML = '<li class="empty-message">近 7 天無 M4.0+ 地震</li>';
+                return;
+            }
+            list.innerHTML = data.slice(0, 10).map(e => `<li>
+                <span><span class="event-mag">M${e.magnitude}</span> ${e.locationDesc || '--'}</span>
+                <span><span class="event-time">${new Date(e.time).toLocaleString('zh-TW')}</span>
+                <span class="event-source">${e.source}</span></span>
+            </li>`).join('');
+        }
+
+        async function updateAlerts() {
+            const data = await fetchJson(API + '/api/v1/alerts/active');
+            const list = document.getElementById('alertList');
+            if (!data || data.length === 0) {
+                list.innerHTML = '<li class="empty-message">目前無活躍警報</li>';
+                return;
+            }
+            list.innerHTML = data.slice(0, 10).map(a => `<li>
+                <span><strong>${a.alertType || '--'}</strong> ${a.title || a.description?.substring(0, 60) || ''}</span>
+                <span class="event-time">${timeAgo(a.alertTime)}</span>
+            </li>`).join('');
+        }
+
+        async function refresh() {
+            await Promise.all([updateGnssQuality(), updateCollectors(), updateEarthquakes(), updateAlerts()]);
+            document.getElementById('updateTime').textContent =
+                'Last update: ' + new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+        }
+
+        refresh();
+        setInterval(refresh, 60000);
+    </script>
+</body>
+</html>

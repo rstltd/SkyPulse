@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: skypulse
+  datasource:
+    url: jdbc:postgresql://localhost:5432/skypulse
+    username: skypulse
+    password: ${DB_PASSWORD:skypulse_dev}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+
+skypulse:
+  cwa:
+    base-url: https://opendata.cwa.gov.tw/api/v1/rest/datastore
+    api-key: ${CWA_API_KEY:}
+    schedule:
+      rainfall: "0 0 * * * *"
+      weather: "0 0 * * * *"
+      earthquake: "0 */5 * * * *"
+      alert: "0 */3 * * * *"
+      forecast: "0 0 */6 * * *"
+    earthquake:
+      min-magnitude: 4.0
+  wra:
+    base-url: https://opendata.wra.gov.tw/api/v2
+    water-level-guid: 73c4c3de-4045-4765-abeb-89f9f9cd5ff0
+    reservoir-guid: 2be9044c-6e44-4856-aad5-dd108c2e6679
+    schedule:
+      water-level: "0 */10 * * * *"
+      reservoir: "0 0 * * * *"
+  usgs:
+    base-url: https://earthquake.usgs.gov
+    schedule:
+      earthquake: "0 */5 * * * *"
+    earthquake:
+      min-magnitude: 4.0
+      min-latitude: 21.5
+      max-latitude: 25.5
+      min-longitude: 119.0
+      max-longitude: 122.5
+  swpc:
+    base-url: https://services.swpc.noaa.gov
+    schedule:
+      kp-index: "0 */15 * * * *"
+      dst-index: "0 0 * * * *"
+      solar-wind: "0 */5 * * * *"
+      alert: "0 */10 * * * *"
+  backfill:
+    enabled: false

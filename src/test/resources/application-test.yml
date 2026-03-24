@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/skypulse_test
+    username: skypulse
+    password: skypulse_test
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+skypulse:
+  cwa:
+    api-key: test-key
+  backfill:
+    enabled: false

@@ -1,0 +1,17 @@
+services:
+  postgres-test:
+    image: timescale/timescaledb:latest-pg16
+    container_name: skypulse-db-test
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: skypulse_test
+      POSTGRES_USER: skypulse
+      POSTGRES_PASSWORD: skypulse_test
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skypulse -d skypulse_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

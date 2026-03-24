@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/skypulse
+    password: ${DB_PASSWORD:skypulse_dev}
+
+logging:
+  level:
+    com.rstltd.skypulse: DEBUG
+    org.springframework.web.reactive.function.client: DEBUG

@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: skypulse-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: skypulse
+      POSTGRES_USER: skypulse
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-skypulse_dev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skypulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  skypulse:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: skypulse-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/skypulse
+      SPRING_DATASOURCE_USERNAME: skypulse
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-skypulse_dev}
+      CWA_API_KEY: ${CWA_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
