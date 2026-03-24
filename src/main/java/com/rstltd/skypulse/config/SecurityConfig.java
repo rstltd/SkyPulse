@@ -12,6 +12,12 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -23,27 +29,29 @@ public class SecurityConfig {
     @Value("${skypulse.security.admin-key:}")
     private String adminKey;
 
+    @Value("${skypulse.security.cors-origins:http://localhost:8080}")
+    private String corsOrigins;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(new ApiKeyAuthFilter(apiKey, adminKey),
                         UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new RateLimitFilter(objectMapper),
+                        ApiKeyAuthFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints
                         .requestMatchers("/api/v1/health").permitAll()
                         .requestMatchers("/", "/index.html", "/favicon.ico").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html",
                                 "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
-                        // Admin endpoints
                         .requestMatchers("/api/v1/backfill/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/system/**").hasRole("ADMIN")
-                        // Authenticated endpoints
                         .requestMatchers("/api/v1/**").hasRole("USER")
-                        // Static resources
                         .anyRequest().permitAll()
                 )
                 .exceptionHandling(ex -> ex
@@ -62,5 +70,18 @@ public class SecurityConfig {
                 );
 
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(Arrays.asList(corsOrigins.split(",")));
+        config.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        config.setAllowedHeaders(List.of("X-API-Key", "Content-Type", "Authorization"));
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", config);
+        return source;
     }
 }

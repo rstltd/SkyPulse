@@ -66,3 +66,4 @@ skypulse:
   security:
     api-key: ${SKYPULSE_API_KEY:}
     admin-key: ${SKYPULSE_ADMIN_KEY:}
+    cors-origins: ${SKYPULSE_CORS_ORIGINS:http://localhost:8080}
