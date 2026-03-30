@@ -9,6 +9,10 @@ spring:
     hibernate:
       ddl-auto: validate
 
+server:
+  servlet:
+    context-path: /skypulse
+
 skypulse:
   cwa:
     api-key: test-key

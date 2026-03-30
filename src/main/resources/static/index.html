@@ -97,7 +97,9 @@
     </div>
 
     <script>
-        const API = '';
+        // Auto-detect context path from current page URL
+        const basePath = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
+        const API = basePath;
 
         function timeAgo(dateStr) {
             if (!dateStr) return '--';
