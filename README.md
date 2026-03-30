@@ -115,6 +115,38 @@ cd docker && docker compose -f docker-compose.prod.yml up -d --build
 - 所有環境變數為必填
 - `restart: unless-stopped` 自動重啟
 
+### 正式環境 + Nginx（推薦）
+
+```bash
+# 1. 放置 SSL 憑證
+mkdir -p docker/nginx/certs
+cp fullchain.pem docker/nginx/certs/
+cp privkey.pem docker/nginx/certs/
+
+# 2. 啟動（含 Nginx 反向代理）
+cd docker && docker compose -f docker-compose.nginx.yml up -d --build
+```
+
+架構：`Client → :443 (HTTPS) → Nginx → :8080 → Spring Boot → PostgreSQL`
+
+特點：
+- HTTPS/SSL 由 Nginx 處理
+- Spring Boot 不對外暴露（僅 Nginx 可存取）
+- Nginx 層速率限制 + 安全標頭
+- HTTP 自動跳轉 HTTPS
+
+### 正式環境 + Apache
+
+```bash
+# 1. 放置 SSL 憑證
+mkdir -p docker/apache/certs
+cp fullchain.pem docker/apache/certs/
+cp privkey.pem docker/apache/certs/
+
+# 2. 啟動（含 Apache 反向代理）
+cd docker && docker compose -f docker-compose.apache.yml up -d --build
+```
+
 ### Raspberry Pi 部署
 
 1. 安裝 Docker：

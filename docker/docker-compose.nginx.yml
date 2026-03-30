@@ -1,0 +1,66 @@
+# Production with Nginx reverse proxy
+# Usage: docker compose -f docker-compose.nginx.yml up -d --build
+#
+# Before starting:
+# 1. Place SSL certificates in docker/nginx/certs/
+#    - fullchain.pem (certificate + chain)
+#    - privkey.pem   (private key)
+# 2. Set environment variables in docker/.env
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: skypulse-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/rate-limit.conf:/etc/nginx/conf.d/rate-limit.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - skypulse
+
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: skypulse-db
+    restart: unless-stopped
+    # No ports — only accessible via Docker network
+    environment:
+      POSTGRES_DB: skypulse
+      POSTGRES_USER: skypulse
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skypulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  skypulse:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: skypulse-app
+    restart: unless-stopped
+    # No ports — only Nginx can reach :8080
+    expose:
+      - "8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/skypulse
+      SPRING_DATASOURCE_USERNAME: skypulse
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      CWA_API_KEY: ${CWA_API_KEY:?CWA_API_KEY is required}
+      SKYPULSE_API_KEY: ${SKYPULSE_API_KEY:?SKYPULSE_API_KEY is required}
+      SKYPULSE_ADMIN_KEY: ${SKYPULSE_ADMIN_KEY:?SKYPULSE_ADMIN_KEY is required}
+      SKYPULSE_CORS_ORIGINS: ${SKYPULSE_CORS_ORIGINS:-https://skypulse.example.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
