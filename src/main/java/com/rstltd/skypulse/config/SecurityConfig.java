@@ -45,6 +45,7 @@ public class SecurityConfig {
                         ApiKeyAuthFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/health").permitAll()
+                        .requestMatchers("/api/v1/monitor/**").permitAll()
                         .requestMatchers("/", "/index.html", "/favicon.ico").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html",
                                 "/v3/api-docs/**").permitAll()

@@ -129,8 +129,7 @@
             } catch (e) { return null; }
         }
 
-        async function updateGnssQuality() {
-            const data = await fetchJson(API + '/api/v1/spaceweather/gnss-quality');
+        function renderGnssQuality(data) {
             if (!data) return;
             const badge = document.getElementById('qualityBadge');
             badge.textContent = data.qualityLevel || '--';
@@ -143,8 +142,7 @@
             document.getElementById('assessment').textContent = data.assessment || '';
         }
 
-        async function updateCollectors() {
-            const data = await fetchJson(API + '/api/v1/system/collectors');
+        function renderCollectors(data) {
             const tbody = document.getElementById('collectorTable');
             if (!data || data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="empty-message">尚無收集器運行紀錄</td></tr>';
@@ -159,22 +157,20 @@
             </tr>`).join('');
         }
 
-        async function updateEarthquakes() {
-            const data = await fetchJson(API + '/api/v1/seismic/events/latest');
+        function renderEarthquakes(data) {
             const list = document.getElementById('earthquakeList');
             if (!data || data.length === 0) {
                 list.innerHTML = '<li class="empty-message">近 7 天無 M4.0+ 地震</li>';
                 return;
             }
-            list.innerHTML = data.slice(0, 10).map(e => `<li>
+            list.innerHTML = data.map(e => `<li>
                 <span><span class="event-mag">M${e.magnitude}</span> ${e.locationDesc || '--'}</span>
                 <span><span class="event-time">${new Date(e.time).toLocaleString('zh-TW')}</span>
                 <span class="event-source">${e.source}</span></span>
             </li>`).join('');
         }
 
-        async function updateAlerts() {
-            const data = await fetchJson(API + '/api/v1/alerts/active');
+        function renderAlerts(data) {
             const list = document.getElementById('alertList');
             if (!data || data.length === 0) {
                 list.innerHTML = '<li class="empty-message">目前無活躍警報</li>';
@@ -187,7 +183,13 @@
         }
 
         async function refresh() {
-            await Promise.all([updateGnssQuality(), updateCollectors(), updateEarthquakes(), updateAlerts()]);
+            const summary = await fetchJson(API + '/api/v1/monitor/summary');
+            if (summary) {
+                renderGnssQuality(summary.gnssQuality);
+                renderCollectors(summary.collectors);
+                renderEarthquakes(summary.recentEarthquakes);
+                renderAlerts(summary.activeAlerts);
+            }
             document.getElementById('updateTime').textContent =
                 'Last update: ' + new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
         }
