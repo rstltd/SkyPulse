@@ -77,7 +77,7 @@ class CwaRainfallCollectorTest {
     @Test
     void collect_emptyResponse() {
         var response = new CwaRainfallResponse("true",
-                new Result("O-A0002-001", new Records(Collections.emptyList())));
+                new Records(Collections.emptyList()));
         when(cwaApiClient.getDataset(any(), any())).thenReturn(Mono.just(response));
 
         CollectorResult result = collector.collect();
@@ -125,8 +125,7 @@ class CwaRainfallCollectorTest {
     // --- Helper builders ---
 
     private CwaRainfallResponse buildResponse(List<Station> stations) {
-        return new CwaRainfallResponse("true",
-                new Result("O-A0002-001", new Records(stations)));
+        return new CwaRainfallResponse("true", new Records(stations));
     }
 
     private Station buildStation(String id, String name, String precip, String dateTime) {

@@ -47,11 +47,10 @@ public class CwaForecastCollector extends CollectorBase<CwaForecastResponse.Loca
     protected Mono<List<CwaForecastResponse.Location>> fetch() {
         return cwaApiClient.getDataset("F-D0047-091", CwaForecastResponse.class)
                 .map(response -> {
-                    if (response.result() != null && response.result().records() != null
-                            && response.result().records().Locations() != null
-                            && !response.result().records().Locations().isEmpty()
-                            && response.result().records().Locations().get(0).Location() != null) {
-                        return response.result().records().Locations().get(0).Location();
+                    if (response.records() != null && response.records().Locations() != null
+                            && !response.records().Locations().isEmpty()
+                            && response.records().Locations().get(0).Location() != null) {
+                        return response.records().Locations().get(0).Location();
                     }
                     return Collections.<CwaForecastResponse.Location>emptyList();
                 });

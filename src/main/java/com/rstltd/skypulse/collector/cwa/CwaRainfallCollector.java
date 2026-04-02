@@ -52,9 +52,8 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
     protected Mono<List<CwaRainfallResponse.Station>> fetch() {
         return cwaApiClient.getDataset("O-A0002-001", CwaRainfallResponse.class)
                 .map(response -> {
-                    if (response.result() != null && response.result().records() != null
-                            && response.result().records().Station() != null) {
-                        return response.result().records().Station();
+                    if (response.records() != null && response.records().Station() != null) {
+                        return response.records().Station();
                     }
                     return Collections.<CwaRainfallResponse.Station>emptyList();
                 });

@@ -44,9 +44,8 @@ public class CwaAlertCollector extends CollectorBase<CwaAlertResponse.AlertRecor
     protected Mono<List<CwaAlertResponse.AlertRecord>> fetch() {
         return cwaApiClient.getDataset("W-C0033-002", CwaAlertResponse.class)
                 .map(response -> {
-                    if (response.result() != null && response.result().records() != null
-                            && response.result().records().record() != null) {
-                        return response.result().records().record();
+                    if (response.records() != null && response.records().record() != null) {
+                        return response.records().record();
                     }
                     return Collections.<CwaAlertResponse.AlertRecord>emptyList();
                 });

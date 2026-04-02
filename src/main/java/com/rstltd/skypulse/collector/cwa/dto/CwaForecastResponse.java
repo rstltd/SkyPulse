@@ -8,13 +8,8 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CwaForecastResponse(
         String success,
-        Result result
+        Records records
 ) {
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Result(
-            @JsonProperty("resource_id") String resourceId,
-            Records records
-    ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Records(List<Locations> Locations) {}

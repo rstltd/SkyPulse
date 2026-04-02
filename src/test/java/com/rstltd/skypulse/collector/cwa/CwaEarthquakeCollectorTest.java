@@ -81,7 +81,7 @@ class CwaEarthquakeCollectorTest {
 
     private CwaEarthquakeResponse buildResponse(List<Earthquake> earthquakes) {
         return new CwaEarthquakeResponse("true",
-                new Result("E-A0015-001", new Records("地震報告", earthquakes)));
+                new Records("地震報告", earthquakes));
     }
 
     private Earthquake buildEarthquake(int no, String time, double mag, double depth,

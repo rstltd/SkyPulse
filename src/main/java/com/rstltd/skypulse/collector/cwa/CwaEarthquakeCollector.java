@@ -49,9 +49,8 @@ public class CwaEarthquakeCollector extends CollectorBase<CwaEarthquakeResponse.
     protected Mono<List<CwaEarthquakeResponse.Earthquake>> fetch() {
         return cwaApiClient.getDataset("E-A0015-001", CwaEarthquakeResponse.class)
                 .map(response -> {
-                    if (response.result() != null && response.result().records() != null
-                            && response.result().records().Earthquake() != null) {
-                        return response.result().records().Earthquake();
+                    if (response.records() != null && response.records().Earthquake() != null) {
+                        return response.records().Earthquake();
                     }
                     return Collections.<CwaEarthquakeResponse.Earthquake>emptyList();
                 });
