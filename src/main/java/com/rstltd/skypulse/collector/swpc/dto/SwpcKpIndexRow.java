@@ -1,3 +1,10 @@
 package com.rstltd.skypulse.collector.swpc.dto;
 
-public record SwpcKpIndexRow(String timeTag, String kp) {}
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record SwpcKpIndexRow(
+        @JsonProperty("time_tag") String timeTag,
+        @JsonProperty("Kp") Double kp
+) {}

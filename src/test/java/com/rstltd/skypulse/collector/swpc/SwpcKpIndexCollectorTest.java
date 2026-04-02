@@ -11,7 +11,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 
 import java.time.OffsetDateTime;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -31,11 +30,10 @@ class SwpcKpIndexCollectorTest {
     }
 
     @Test
-    void collect_happyPath_parsesArrayAndPersists() {
+    void collect_happyPath_parsesObjectArrayAndPersists() {
         String json = """
-                [["time_tag","Kp","a_running","station_count"],
-                 ["2026-03-20 00:00:00.000","2.00","7","8"],
-                 ["2026-03-20 03:00:00.000","3.50","15","8"]]
+                [{"time_tag":"2026-03-20T00:00:00","Kp":2.67,"a_running":12,"station_count":8},
+                 {"time_tag":"2026-03-20T03:00:00","Kp":3.50,"a_running":15,"station_count":8}]
                 """;
         when(swpcApiClient.getRawJson(anyString())).thenReturn(Mono.just(json));
         when(kpRepo.existsById(any(OffsetDateTime.class))).thenReturn(false);
@@ -52,9 +50,8 @@ class SwpcKpIndexCollectorTest {
     @Test
     void collect_filtersInvalidKpValues() {
         String json = """
-                [["time_tag","Kp"],
-                 ["2026-03-20 00:00:00.000","3.00"],
-                 ["2026-03-20 03:00:00.000","-1.00"]]
+                [{"time_tag":"2026-03-20T00:00:00","Kp":3.0},
+                 {"time_tag":"2026-03-20T03:00:00","Kp":-1.0}]
                 """;
         when(swpcApiClient.getRawJson(anyString())).thenReturn(Mono.just(json));
         when(kpRepo.existsById(any())).thenReturn(false);
@@ -69,8 +66,7 @@ class SwpcKpIndexCollectorTest {
     @Test
     void collect_skipsDuplicates() {
         String json = """
-                [["time_tag","Kp"],
-                 ["2026-03-20 00:00:00.000","3.00"]]
+                [{"time_tag":"2026-03-20T00:00:00","Kp":3.0}]
                 """;
         when(swpcApiClient.getRawJson(anyString())).thenReturn(Mono.just(json));
         when(kpRepo.existsById(any())).thenReturn(true);

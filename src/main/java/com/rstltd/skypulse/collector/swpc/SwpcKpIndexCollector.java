@@ -1,7 +1,6 @@
 package com.rstltd.skypulse.collector.swpc;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rstltd.skypulse.collector.common.CollectorBase;
 import com.rstltd.skypulse.collector.common.CollectorResult;
@@ -14,8 +13,9 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 
@@ -47,31 +47,34 @@ public class SwpcKpIndexCollector extends CollectorBase<SwpcKpIndexRow> {
     @Override
     protected Mono<List<SwpcKpIndexRow>> fetch() {
         return swpcApiClient.getRawJson("/products/noaa-planetary-k-index.json")
-                .map(this::parseKpArray);
+                .map(json -> {
+                    try {
+                        return objectMapper.readValue(json,
+                                objectMapper.getTypeFactory().constructCollectionType(
+                                        List.class, SwpcKpIndexRow.class));
+                    } catch (JsonProcessingException e) {
+                        log.error("[SWPC_KP_INDEX] Failed to parse response: {}", e.getMessage());
+                        return Collections.<SwpcKpIndexRow>emptyList();
+                    }
+                });
     }
 
     @Override
     protected boolean validate(SwpcKpIndexRow item) {
         if (item.timeTag() == null || item.kp() == null) return false;
-        try {
-            double kp = Double.parseDouble(item.kp());
-            return kp >= 0 && kp <= 9;
-        } catch (NumberFormatException e) {
-            return false;
-        }
+        return item.kp() >= 0 && item.kp() <= 9;
     }
 
     @Override
     protected int persist(List<SwpcKpIndexRow> data) {
         int count = 0;
         for (var row : data) {
-            OffsetDateTime time = TimeUtils.toUtcOffset(
-                    TimeUtils.parseSwpcTimestamp(row.timeTag()));
+            OffsetDateTime time = parseSwpcIsoTime(row.timeTag());
             if (kpRepo.existsById(time)) continue;
 
             KpIndexRecord record = new KpIndexRecord();
             record.setTime(time);
-            record.setKpValue(new BigDecimal(row.kp()));
+            record.setKpValue(BigDecimal.valueOf(row.kp()));
             record.setSource("SWPC");
             try {
                 record.setRawData(objectMapper.writeValueAsString(row));
@@ -83,28 +86,7 @@ public class SwpcKpIndexCollector extends CollectorBase<SwpcKpIndexRow> {
         return count;
     }
 
-    /**
-     * Parse SWPC 2D array format:
-     * [["time_tag","Kp","a_running","station_count"],
-     *  ["2026-03-17 00:00:00.000","2.00","7","8"], ...]
-     */
-    private List<SwpcKpIndexRow> parseKpArray(String json) {
-        try {
-            JsonNode root = objectMapper.readTree(json);
-            if (!root.isArray() || root.size() < 2) return Collections.emptyList();
-
-            List<SwpcKpIndexRow> rows = new ArrayList<>();
-            // Skip header row (index 0)
-            for (int i = 1; i < root.size(); i++) {
-                JsonNode row = root.get(i);
-                if (row.isArray() && row.size() >= 2) {
-                    rows.add(new SwpcKpIndexRow(row.get(0).asText(), row.get(1).asText()));
-                }
-            }
-            return rows;
-        } catch (JsonProcessingException e) {
-            log.error("[SWPC_KP_INDEX] Failed to parse Kp array: {}", e.getMessage());
-            return Collections.emptyList();
-        }
+    private OffsetDateTime parseSwpcIsoTime(String timeTag) {
+        return LocalDateTime.parse(timeTag).atOffset(ZoneOffset.UTC);
     }
 }

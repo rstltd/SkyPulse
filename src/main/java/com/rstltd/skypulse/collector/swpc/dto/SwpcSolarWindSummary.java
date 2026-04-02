@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SwpcSolarWindSummary(
-        @JsonProperty("TimeStamp") String timeStamp,
-        @JsonProperty("WindSpeed") String windSpeed,
-        @JsonProperty("Bt") String bt,
-        @JsonProperty("Bz") String bz
+        @JsonProperty("time_tag") String timeTag,
+        @JsonProperty("proton_speed") Double protonSpeed,
+        @JsonProperty("bt") Double bt,
+        @JsonProperty("bz_gsm") Double bzGsm
 ) {}

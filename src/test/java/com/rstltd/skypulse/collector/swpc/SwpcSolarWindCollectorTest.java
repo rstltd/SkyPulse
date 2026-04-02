@@ -2,7 +2,6 @@ package com.rstltd.skypulse.collector.swpc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rstltd.skypulse.collector.common.CollectorResult;
-import com.rstltd.skypulse.collector.swpc.dto.SwpcSolarWindSummary;
 import com.rstltd.skypulse.repository.SolarWindRecordRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,13 +29,15 @@ class SwpcSolarWindCollectorTest {
 
     @Test
     void collect_mergesSpeedAndMagField() {
-        var speed = new SwpcSolarWindSummary("2026-03-24 05:24:00.000", "607", null, null);
-        var mag = new SwpcSolarWindSummary("2026-03-24 05:26:00.000", null, "4", "-2");
+        String speedJson = """
+                [{"proton_speed":458,"time_tag":"2026-04-02T03:09:00"}]
+                """;
+        String magJson = """
+                [{"bt":13,"bz_gsm":9,"time_tag":"2026-04-02T03:09:00"}]
+                """;
 
-        when(swpcApiClient.get(contains("solar-wind-speed"), eq(SwpcSolarWindSummary.class)))
-                .thenReturn(Mono.just(speed));
-        when(swpcApiClient.get(contains("solar-wind-mag-field"), eq(SwpcSolarWindSummary.class)))
-                .thenReturn(Mono.just(mag));
+        when(swpcApiClient.getRawJson(contains("solar-wind-speed"))).thenReturn(Mono.just(speedJson));
+        when(swpcApiClient.getRawJson(contains("solar-wind-mag-field"))).thenReturn(Mono.just(magJson));
         when(solarWindRepo.existsById(any())).thenReturn(false);
         when(solarWindRepo.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -50,11 +51,15 @@ class SwpcSolarWindCollectorTest {
 
     @Test
     void collect_skipsDuplicate() {
-        var speed = new SwpcSolarWindSummary("2026-03-24 05:00:00.000", "500", null, null);
-        var mag = new SwpcSolarWindSummary("2026-03-24 05:00:00.000", null, "3", "-1");
+        String speedJson = """
+                [{"proton_speed":500,"time_tag":"2026-04-02T05:00:00"}]
+                """;
+        String magJson = """
+                [{"bt":3,"bz_gsm":-1,"time_tag":"2026-04-02T05:00:00"}]
+                """;
 
-        when(swpcApiClient.get(contains("solar-wind-speed"), any())).thenReturn(Mono.just(speed));
-        when(swpcApiClient.get(contains("solar-wind-mag-field"), any())).thenReturn(Mono.just(mag));
+        when(swpcApiClient.getRawJson(contains("solar-wind-speed"))).thenReturn(Mono.just(speedJson));
+        when(swpcApiClient.getRawJson(contains("solar-wind-mag-field"))).thenReturn(Mono.just(magJson));
         when(solarWindRepo.existsById(any())).thenReturn(true);
 
         CollectorResult result = collector.collect();
