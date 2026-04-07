@@ -152,6 +152,25 @@ export interface WaterLevelObservation {
   source: string
 }
 
+export interface SystemLog {
+  time: string
+  category: 'COLLECTOR' | 'SYSTEM' | 'BACKFILL' | 'ERROR'
+  level: 'INFO' | 'WARN' | 'ERROR'
+  source: string
+  message: string | null
+  fetchedCount: number | null
+  validCount: number | null
+  persistedCount: number | null
+  durationMs: number | null
+  errorDetail: string | null
+}
+
+export interface LogStats {
+  byLevel: Record<string, number>
+  bySource: Record<string, number>
+  hourly: Array<{ time: string; info: number; warn: number; error: number }>
+}
+
 export interface ReservoirStatus {
   time: string
   reservoirId: string

@@ -71,6 +71,9 @@ skypulse:
       alert: "0 */10 * * * *"
   backfill:
     enabled: false
+  logging:
+    retention-days: 30
+    cleanup-cron: "0 0 3 * * *"
   security:
     api-key: ${SKYPULSE_API_KEY:}
     admin-key: ${SKYPULSE_ADMIN_KEY:}

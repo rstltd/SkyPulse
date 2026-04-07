@@ -1,5 +1,6 @@
 package com.rstltd.skypulse.backfill;
 
+import com.rstltd.skypulse.service.SystemLogService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,15 +20,18 @@ public class BackfillService {
     private final SwpcKpHistoricalBackfill swpcKpBackfill;
     private final SwpcDstHistoricalBackfill swpcDstBackfill;
     private final OmniWebHistoricalBackfill omniWebBackfill;
+    private final SystemLogService systemLogService;
 
     public BackfillService(UsgsHistoricalBackfill usgsBackfill,
                            SwpcKpHistoricalBackfill swpcKpBackfill,
                            SwpcDstHistoricalBackfill swpcDstBackfill,
-                           OmniWebHistoricalBackfill omniWebBackfill) {
+                           OmniWebHistoricalBackfill omniWebBackfill,
+                           SystemLogService systemLogService) {
         this.usgsBackfill = usgsBackfill;
         this.swpcKpBackfill = swpcKpBackfill;
         this.swpcDstBackfill = swpcDstBackfill;
         this.omniWebBackfill = omniWebBackfill;
+        this.systemLogService = systemLogService;
     }
 
     public boolean isEnabled() {
@@ -41,6 +45,8 @@ public class BackfillService {
         }
 
         log.info("[BACKFILL] Starting {} from {} to {}", source, startDate, endDate);
+        systemLogService.logEvent("BACKFILL", "INFO", source,
+                "Starting backfill from " + startDate + " to " + endDate);
 
         BackfillResult result = switch (source) {
             case "usgs-earthquake" -> usgsBackfill.execute(startDate, endDate);
@@ -52,6 +58,8 @@ public class BackfillService {
         };
 
         log.info("[BACKFILL] {} completed: {}", source, result.message());
+        systemLogService.logEvent("BACKFILL", result.errors() == 0 ? "INFO" : "ERROR",
+                source, result.message());
         return result;
     }
 }

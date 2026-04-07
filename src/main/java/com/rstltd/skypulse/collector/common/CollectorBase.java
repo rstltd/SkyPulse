@@ -1,6 +1,7 @@
 package com.rstltd.skypulse.collector.common;
 
 import com.rstltd.skypulse.service.CollectorStatusService;
+import com.rstltd.skypulse.service.SystemLogService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,9 @@ public abstract class CollectorBase<T> {
 
     @Autowired(required = false)
     private CollectorStatusService collectorStatusService;
+
+    @Autowired(required = false)
+    private SystemLogService systemLogService;
 
     protected abstract String getSourceName();
 
@@ -72,6 +76,9 @@ public abstract class CollectorBase<T> {
     private CollectorResult recordAndReturn(CollectorResult result) {
         if (collectorStatusService != null) {
             collectorStatusService.recordResult(result);
+        }
+        if (systemLogService != null) {
+            systemLogService.recordCollectorResult(result);
         }
         return result;
     }

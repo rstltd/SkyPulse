@@ -1,6 +1,7 @@
 package com.rstltd.skypulse.api;
 
 import com.rstltd.skypulse.api.dto.ApiResponse;
+import com.rstltd.skypulse.service.SystemLogService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,12 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    private final SystemLogService systemLogService;
+
+    public GlobalExceptionHandler(SystemLogService systemLogService) {
+        this.systemLogService = systemLogService;
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<?>> handleBadRequest(IllegalArgumentException ex) {
@@ -57,6 +64,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);
+        systemLogService.logError("API_ERROR", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("Internal server error"));
     }
