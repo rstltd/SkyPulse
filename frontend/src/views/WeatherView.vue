@@ -26,7 +26,7 @@
         <option :value="720">30 days</option>
       </select>
       <div class="spacer"></div>
-      <button class="btn btn-export" disabled>Export CSV</button>
+      <button class="btn btn-export" :disabled="!rainfallData.length" @click="handleExport">Export CSV</button>
     </div>
 
     <LoadingSpinner :loading="loading && !rainfallData.length" text="Loading weather data..." />
@@ -129,6 +129,21 @@
         </AppCard>
       </div>
 
+      <!-- Weather Forecast -->
+      <AppCard v-if="forecasts.length" title="Weather Forecast"
+        :subtitle="sf.selectedCounty.value" style="margin-bottom: var(--space-lg)">
+        <div class="forecast-grid">
+          <div v-for="fc in forecasts.slice(0, 8)" :key="fc.forecastTime" class="forecast-item">
+            <span class="forecast-time">{{ formatTime(fc.forecastTime) }}</span>
+            <span class="forecast-desc">{{ fc.weatherDesc }}</span>
+            <span class="forecast-temp">{{ fc.minTemp }}&deg; ~ {{ fc.maxTemp }}&deg;C</span>
+            <span class="forecast-rain" :class="fc.rainProb >= 90 ? 'text-danger' : fc.rainProb >= 70 ? 'text-warning' : fc.rainProb > 30 ? 'text-success' : ''">
+              {{ fc.rainProb }}%
+            </span>
+          </div>
+        </div>
+      </AppCard>
+
       <!-- Rainfall Table -->
       <AppCard title="Observation Records" :no-padding="true">
         <DataTable :columns="rainfallCols" :rows="rainfallData.slice(0, 100)" empty-text="No rainfall data">
@@ -147,8 +162,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { getLatestRainfall, getRainfallByStation, getAccumulatedRainfall, getLatestObservations, getEffectiveRainfall } from '@/api/weather'
+import { getLatestRainfall, getRainfallByStation, getAccumulatedRainfall, getLatestObservations, getEffectiveRainfall, getForecasts } from '@/api/weather'
 import { useStationFilter } from '@/composables/useStationFilter'
+import { useExport } from '@/composables/useExport'
 import AppCard from '@/components/AppCard.vue'
 import AppChart from '@/components/AppChart.vue'
 import StationSelector from '@/components/StationSelector.vue'
@@ -156,11 +172,19 @@ import DataTable from '@/components/DataTable.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 
 const sf = useStationFilter({ type: 'RAINFALL' })
+const { exportCsv } = useExport()
+
+const handleExport = () => {
+  const date = new Date().toISOString().slice(0, 10)
+  const station = sf.selectedStation.value || 'all'
+  exportCsv(`rainfall-${station}-${date}.csv`, rainfallCols, rainfallData.value.slice(0, 100))
+}
 
 const rainfallData = ref<any[]>([])
 const observations = ref<any[]>([])
 const accSummary = ref<any>(null)
 const effData = ref<any>(null)
+const forecasts = ref<any[]>([])
 const hours = ref(24)
 const effWindowHours = ref(72)
 const loading = ref(false)
@@ -178,16 +202,29 @@ const fetchData = async () => {
   loading.value = true
   try {
     if (sf.selectedStation.value) {
-      const [rfRes, accRes, obsRes, effRes] = await Promise.all([
+      // Get county for forecast lookup
+      const station = sf.allStations.value.find(s => s.stationCode === sf.selectedStation.value)
+      const county = station?.county
+
+      const promises: Promise<any>[] = [
         getRainfallByStation(sf.selectedStation.value, hours.value),
         getAccumulatedRainfall(sf.selectedStation.value, 72),
         getLatestObservations(),
         getEffectiveRainfall(sf.selectedStation.value, effWindowHours.value),
-      ])
+      ]
+      if (county) promises.push(getForecasts(county))
+
+      const results = await Promise.all(promises)
+      const [rfRes, accRes, obsRes, effRes] = results
       if (rfRes.data.success) rainfallData.value = rfRes.data.data || []
       if (accRes.data.success) accSummary.value = accRes.data.data
       if (obsRes.data.success) observations.value = obsRes.data.data || []
       if (effRes.data.success) effData.value = effRes.data.data
+      if (county && results[4]?.data?.success) {
+        forecasts.value = results[4].data.data || []
+      } else {
+        forecasts.value = []
+      }
     } else {
       const [rfRes, obsRes] = await Promise.all([
         getLatestRainfall(),
@@ -197,6 +234,7 @@ const fetchData = async () => {
       if (obsRes.data.success) observations.value = obsRes.data.data || []
       accSummary.value = null
       effData.value = null
+      forecasts.value = []
     }
   } catch (e) {
     console.error('Weather fetch error:', e)
@@ -522,5 +560,43 @@ const formatTime = (iso: string) => {
   font-size: 0.85rem;
   color: var(--color-text-secondary);
   font-family: var(--font-mono);
+}
+
+.forecast-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-md);
+}
+
+.forecast-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.forecast-time {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.forecast-desc {
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.forecast-temp {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.forecast-rain {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
 }
 </style>

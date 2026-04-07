@@ -10,13 +10,23 @@ SkyPulse (天脈) is a Spring Boot data platform for RST.ltd's GNSS slope disast
 
 ## Tech Stack
 
+### Backend
 - Java 21 + Spring Boot 3.4.4 + Spring Data JPA
 - PostgreSQL 16 with TimescaleDB (hypertables, compression, continuous aggregates)
 - WebClient (non-blocking HTTP) for external API calls
-- Flyway for DB migrations (V1-V9)
+- Flyway for DB migrations (V1-V12)
 - Docker Compose (timescale/timescaledb:latest-pg16)
 - Jackson for JSON
-- springdoc-openapi (Swagger UI at /swagger-ui.html)
+- springdoc-openapi v2.8.6 (Swagger UI at /swagger-ui.html)
+- Bucket4j for rate limiting
+- Spring Security (session-based + API key authentication)
+
+### Frontend
+- Vue 3 (Composition API, `<script setup>`) + TypeScript
+- Vite (dev server port 5173)
+- ECharts (via vue-echarts) for data visualization
+- Axios for HTTP requests (session cookie auth)
+- Vue Router v4 (SPA with backend forwarding via `SpaForwardingController`)
 
 ## Build & Run Commands
 
@@ -38,26 +48,60 @@ cd docker && docker compose -f docker-compose.test.yml up -d
 
 # Run single test
 ./mvnw test -Dtest=CwaRainfallCollectorTest
+
+# Frontend dev
+cd frontend && npm install && npm run dev
 ```
 
 ## Required Environment Variables
 
 - `CWA_API_KEY` — CWA (Central Weather Administration) API key
 - `DB_PASSWORD` — PostgreSQL password (defaults to `skypulse_dev` in dev)
+- `SKYPULSE_API_KEY` — Data query API key (X-API-Key header, USER role)
+- `SKYPULSE_ADMIN_KEY` — Admin operations API key (X-API-Key header, ADMIN role)
+- `SKYPULSE_LOGIN_USER` / `SKYPULSE_LOGIN_PASSWORD` — Optional web login credentials
+- `SKYPULSE_CORS_ORIGINS` — Allowed CORS origins (default: http://localhost:8080)
 
 ## Architecture
 
 ### Data Flow
 
-External APIs → **Collector** (scheduled ETL) → **Repository** (JPA) → **Service** → **REST API** (`/api/v1/...`)
+External APIs → **Collector** (scheduled ETL) → **Repository** (JPA) → **Service** → **REST API** (`/api/v1/...`) → **Vue Frontend**
 
 ### Key Layers
 
-- **`collector/`** — Scheduled data fetchers. All extend `CollectorBase<T>` which provides `fetch()` → `validate()` → `persist()` lifecycle with retry, logging, and timing. Four data sources: `cwa/` (CWA weather bureau), `wra/` (WRA hydrology), `usgs/` (USGS earthquakes), `swpc/` (NOAA space weather).
+- **`collector/`** — Scheduled data fetchers (12 collectors). All extend `CollectorBase<T>` which provides `fetch()` → `validate()` → `persist()` lifecycle with retry (exponential backoff, max 2 retries), logging, and timing. Four data sources: `cwa/` (5 collectors), `wra/` (2), `usgs/` (1), `swpc/` (4).
 - **`backfill/`** — One-time historical data import (6 years). Triggered manually via `POST /api/v1/backfill/{source}`. Uses UPSERT to avoid duplicates, supports resume on interruption.
-- **`domain/`** — JPA entities organized by domain: `weather/`, `seismic/`, `spaceweather/`, `hydrology/`, `alert/`, `station/`.
-- **`api/v1/`** — REST controllers. Includes a GNSS quality indicator endpoint that cross-references Kp + Dst indices.
-- **`config/`** — Each external API has its own named `WebClient` bean (e.g., `cwaWebClient`, `swpcWebClient`). Max in-memory buffer: 5 MB for CWA/WRA.
+- **`domain/`** — JPA entities organized by domain: `weather/`, `seismic/`, `spaceweather/`, `hydrology/`, `alert/`, `station/`, `log/`.
+- **`service/`** — Business logic: `WeatherService` (effective rainfall ETR1/ETR2), `SeismicService` (cross-source dedup), `SpaceWeatherService` (GNSS quality), `HydrologyService` (water level + reservoirs), `AlertService`, `DashboardService` (multi-domain aggregation), `SystemLogService` (audit trail).
+- **`api/`** — REST controllers:
+  - `AuthController` (`/auth`) — Login/logout/session check
+  - `WeatherController` (`/api/v1/weather`) — Rainfall, observations, forecasts, effective rainfall
+  - `SeismicController` (`/api/v1/seismic`) — Earthquake events
+  - `SpaceWeatherController` (`/api/v1/spaceweather`) — Kp, Dst, solar wind, GNSS quality
+  - `HydrologyController` (`/api/v1/hydrology`) — Water levels, reservoir status
+  - `AlertController` (`/api/v1/alerts`) — Hazard alerts
+  - `StationController` (`/api/v1/stations`) — Station metadata
+  - `DashboardController` (`/api/v1/dashboard`) — Consolidated site dashboard
+  - `MonitorController` (`/api/v1/monitor`) — Public monitoring summary
+  - `SystemController` (`/api/v1/system`) — Collector status, system logs (ADMIN)
+  - `HealthController` (`/api/v1/health`) — Health check
+  - `BackfillController` (`/api/v1/backfill`) — Historical data import (ADMIN)
+- **`config/`** — WebClient beans (5: cwa, wra, usgs, swpc, omniWeb), SecurityConfig (dual filter chain), SpaForwardingController, SchedulerConfig (4 threads), RateLimitFilter, OpenApiConfig.
+
+### Security
+
+Two-chain filter architecture:
+- **API chain** (`/api/v1/**`): `SessionOrApiKeyAuthFilter` + `RateLimitFilter`
+  - Public (no auth): `/api/v1/health`, `/api/v1/monitor/**`
+  - USER role: All other `/api/v1/**` endpoints
+  - ADMIN role: `/api/v1/backfill/**`, `/api/v1/system/**`
+- **Web chain** (`/**`): Session-based for frontend pages
+  - Public: `/auth/**`, `/`, `/assets/**`, `/swagger-ui/**`
+
+Rate limiting (Bucket4j):
+- Data query APIs: 100 requests/min/IP
+- Backfill APIs: 5 requests/hour/IP
 
 ### External Data Sources
 
@@ -67,6 +111,7 @@ External APIs → **Collector** (scheduled ETL) → **Repository** (JPA) → **S
 | WRA (水利署) | Public (data.gov.tw) | Water levels, reservoir status |
 | USGS | Public | Earthquakes (M4.0+, Taiwan region) |
 | NOAA SWPC | Public | Kp, Dst, solar wind, space weather alerts |
+| NASA OmniWeb | Public | Kp/Dst historical backfill |
 
 ### Database Design
 
@@ -75,6 +120,15 @@ External APIs → **Collector** (scheduled ETL) → **Repository** (JPA) → **S
 - `earthquake_events` is NOT compressed (very low volume: ~5-10 rows/day)
 - All observation tables store `raw_data JSONB` for traceability
 - Segment-by keys: `station_code` for weather/hydrology, `reservoir_id` for reservoirs
+- `system_logs` hypertable for collector execution metrics (30-day retention, daily cleanup at 3AM UTC)
+- Station `alert_level1/2/3` fields for water level alert thresholds
+
+### Effective Rainfall Calculation
+
+WeatherService implements SWCB-standard effective rainfall:
+- **ETR1**: Event-based accumulated rainfall (events split when 6h rainfall < 4mm)
+- **ETR2**: Decay-weighted effective rainfall: R_eff = Σ(precip_1hr_i × 0.5^(t_i / T½)), T½ = 12h
+- API: `GET /api/v1/weather/rainfall/effective?stationCode=...&windowHours=72`
 
 ### GNSS Quality Classification
 
@@ -87,16 +141,46 @@ SEVERE:   Kp > 7   OR  Dst < -100 nT        OR G3+
 
 ### Scheduling (cron in application.yml)
 
-Highest frequency collectors: CWA alerts (3 min), CWA/USGS earthquakes & SWPC solar wind (5 min). Lowest: forecasts (6-12h). All schedules are configured under `skypulse.{source}.schedule` in YAML.
+12 scheduled collectors across 4 sources:
+
+| Collector | Frequency |
+|-----------|-----------|
+| CWA Alerts | 3 min |
+| CWA/USGS Earthquakes | 5 min |
+| SWPC Solar Wind | 5 min |
+| WRA Water Level | 10 min |
+| SWPC Kp Index | 15 min |
+| CWA Rainfall / Weather | 1 hr |
+| WRA Reservoir / SWPC Dst | 1 hr |
+| SWPC Alerts | 10 min |
+| CWA Forecast | 6 hr |
+
+All schedules configured under `skypulse.{source}.schedule` in YAML.
+
+### Frontend Pages
+
+| Route | Auth | Description |
+|-------|------|-------------|
+| `/login` | Public | 登入頁面 |
+| `/dashboard` | USER | 總覽儀表板 (GNSS 品質、collector 狀態、地震、警報) |
+| `/weather` | USER | 降雨分析 (ETR1/ETR2、累積雨量、I-R 散佈圖) |
+| `/hydrology` | USER | 水位站 (警戒水位) + 水庫狀態 |
+| `/seismic` | USER | 地震事件列表 (規模/深度篩選) |
+| `/spaceweather` | USER | 太空天氣 (Kp/Dst 圖表、GNSS 品質評估) |
+| `/alerts` | USER | 災害警報 (即時 + 歷史) |
+| `/admin` | ADMIN | Collector 狀態 + Backfill 操作 |
+| `/logs` | ADMIN | 系統日誌查詢與統計 |
 
 ## Design Decisions
 
-- CWA and USGS both provide earthquake data — deduplication is needed for overlapping events
+- CWA and USGS both provide earthquake data — deduplication is needed for overlapping events (30s time window, 10km distance, 0.3 magnitude threshold)
 - Earthquake filtering at collector level: only M4.0+ persisted
 - USGS queries scoped to Taiwan region (lat 21.5-25.5, lon 119.0-122.5)
 - Backfill is disabled by default (`skypulse.backfill.enabled: false`)
 - JPA `ddl-auto: validate` — schema managed entirely by Flyway
 - All timestamps use `TIMESTAMPTZ` (UTC-aware)
+- API responses wrapped in `ApiResponse<T>` with `success`, `data`, `timestamp`, `code` fields
+- Paginated endpoints use `PagedResponse<T>` (page, size, totalElements, totalPages)
 
 ## Common Errors to Avoid
 

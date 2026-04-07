@@ -26,7 +26,7 @@
         <option :value="168">7 天</option>
       </select>
       <div class="spacer"></div>
-      <button class="btn btn-export" disabled>Export CSV</button>
+      <button class="btn btn-export" :disabled="!waterLevels.length" @click="handleExport">Export CSV</button>
     </div>
 
     <LoadingSpinner :loading="loading && !waterLevels.length && !reservoirs.length"
@@ -149,6 +149,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { getLatestWaterLevels, getWaterLevelByStation, getReservoirs } from '@/api/hydrology'
+import { useExport } from '@/composables/useExport'
 import { getStations } from '@/api/stations'
 import AppCard from '@/components/AppCard.vue'
 import AppChart from '@/components/AppChart.vue'
@@ -165,6 +166,8 @@ const COUNTY_ORDER = [
   '宜蘭縣','花蓮縣','臺東縣',
   '澎湖縣','金門縣','連江縣',
 ]
+
+const { exportCsv } = useExport()
 
 const waterLevels = ref<any[]>([])
 const stationData = ref<any[]>([])
@@ -316,6 +319,11 @@ const fetchData = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleExport = () => {
+  const date = new Date().toISOString().slice(0, 10)
+  exportCsv(`water-level-${date}.csv`, waterCols, waterLevels.value.slice(0, 50))
 }
 
 onMounted(async () => { await loadMeta(); fetchData() })

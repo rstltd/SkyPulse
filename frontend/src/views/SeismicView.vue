@@ -20,7 +20,7 @@
         <option :value="30">30 days</option>
       </select>
       <div class="spacer"></div>
-      <button class="btn btn-export" disabled>Export CSV</button>
+      <button class="btn btn-export" :disabled="!events.length" @click="handleExport">Export CSV</button>
     </div>
 
     <LoadingSpinner :loading="loading" text="Loading seismic data..." v-if="loading && !events.length" />
@@ -48,6 +48,19 @@
         </AppCard>
       </div>
 
+      <!-- Latest Significant Events -->
+      <AppCard v-if="latestEvents.length" title="Latest Significant Events"
+        subtitle="Most recent 7 days" style="margin-bottom: var(--space-lg)">
+        <div class="latest-events">
+          <div v-for="eq in latestEvents" :key="eq.eventId" class="latest-event-item">
+            <span class="eq-mag" :class="getMagClass(eq.magnitude)">M{{ eq.magnitude }}</span>
+            <span class="latest-event-loc">{{ eq.locationDesc }}</span>
+            <span class="latest-event-depth">{{ eq.depthKm }} km</span>
+            <span class="latest-event-time">{{ formatTime(eq.time) }}</span>
+          </div>
+        </div>
+      </AppCard>
+
       <!-- Event Table -->
       <AppCard title="Earthquake Events" :no-padding="true">
         <DataTable :columns="eventCols" :rows="events" empty-text="No earthquake events found"
@@ -68,13 +81,17 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { getEvents } from '@/api/seismic'
+import { getEvents, getLatestEvents } from '@/api/seismic'
+import { useExport } from '@/composables/useExport'
 import AppCard from '@/components/AppCard.vue'
 import DataTable from '@/components/DataTable.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 
+const { exportCsv } = useExport()
+
 const events = ref<any[]>([])
+const latestEvents = ref<any[]>([])
 const loading = ref(false)
 const minMag = ref(4)
 const days = ref(7)
@@ -105,7 +122,21 @@ const fetchData = async () => {
   }
 }
 
-onMounted(fetchData)
+const fetchLatest = async () => {
+  try {
+    const res = await getLatestEvents()
+    if (res.data.success) latestEvents.value = (res.data.data || []).slice(0, 5)
+  } catch (e) {
+    console.error('Latest events fetch error:', e)
+  }
+}
+
+const handleExport = () => {
+  const date = new Date().toISOString().slice(0, 10)
+  exportCsv(`earthquakes-${date}.csv`, eventCols, events.value)
+}
+
+onMounted(() => { fetchData(); fetchLatest() })
 watch([minMag, days], () => { page.value = 0; fetchData() })
 
 const maxMag = computed(() => {
@@ -165,4 +196,37 @@ const formatTime = (iso: string) => {
 .eq-mag.caution { color: var(--color-caution); }
 .eq-mag.degraded { color: var(--color-degraded); }
 .eq-mag.severe { color: var(--color-severe); }
+
+.latest-events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.latest-event-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.latest-event-loc {
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.latest-event-depth {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.latest-event-time {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
 </style>

@@ -18,7 +18,7 @@
         <option :value="30">30 days</option>
       </select>
       <div class="spacer"></div>
-      <button class="btn btn-export" disabled>Export CSV</button>
+      <button class="btn btn-export" :disabled="!alerts.length" @click="handleExport">Export CSV</button>
     </div>
 
     <LoadingSpinner :loading="loading && !activeAlerts.length" text="Loading alerts..." />
@@ -61,10 +61,13 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { getActiveAlerts, getAlerts } from '@/api/alerts'
+import { useExport } from '@/composables/useExport'
 import AppCard from '@/components/AppCard.vue'
 import DataTable from '@/components/DataTable.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
+
+const { exportCsv } = useExport()
 
 const activeAlerts = ref<any[]>([])
 const alerts = ref<any[]>([])
@@ -117,6 +120,14 @@ const fetchAlerts = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleExport = () => {
+  const date = new Date().toISOString().slice(0, 10)
+  exportCsv(`alerts-${date}.csv`, [
+    ...alertCols,
+    { key: 'affectedArea', label: 'Affected Area' },
+  ], alerts.value)
 }
 
 onMounted(() => { fetchActive(); fetchAlerts() })

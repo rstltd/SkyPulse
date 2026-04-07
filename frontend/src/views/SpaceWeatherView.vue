@@ -40,6 +40,34 @@
         </div>
       </AppCard>
 
+      <!-- Real-Time Indices -->
+      <div class="grid-3" style="margin-bottom: var(--space-lg)">
+        <AppCard>
+          <div class="realtime-card">
+            <span class="realtime-label">Kp Index (Real-Time)</span>
+            <span class="realtime-value">{{ currentKp?.kpValue ?? '-' }}</span>
+            <span class="realtime-time" v-if="currentKp">{{ formatTime(currentKp.time) }}</span>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div class="realtime-card">
+            <span class="realtime-label">Dst Index (Real-Time)</span>
+            <span class="realtime-value">{{ currentDst ? currentDst.dstValue + ' nT' : '-' }}</span>
+            <span class="realtime-time" v-if="currentDst">{{ formatTime(currentDst.time) }}</span>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div class="realtime-card">
+            <span class="realtime-label">Solar Wind (Real-Time)</span>
+            <span class="realtime-value">{{ currentSolarWind ? currentSolarWind.windSpeed + ' km/s' : '-' }}</span>
+            <span class="realtime-detail" v-if="currentSolarWind">
+              Bz: {{ currentSolarWind.bz }} nT
+            </span>
+            <span class="realtime-time" v-if="currentSolarWind">{{ formatTime(currentSolarWind.time) }}</span>
+          </div>
+        </AppCard>
+      </div>
+
       <!-- Time range selector -->
       <div class="toolbar">
         <label class="text-secondary">Time Range:</label>
@@ -49,7 +77,7 @@
           <option :value="168">7 days</option>
         </select>
         <div class="spacer"></div>
-        <button class="btn btn-export" disabled>Export CSV</button>
+        <button class="btn btn-export" :disabled="!kpData.length" @click="handleExport">Export CSV</button>
       </div>
 
       <!-- Charts -->
@@ -75,19 +103,25 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { getGnssQuality, getKpHistory, getDstHistory, getSpaceWeatherAlerts } from '@/api/spaceweather'
+import { getGnssQuality, getKpHistory, getDstHistory, getSpaceWeatherAlerts, getKpCurrent, getDstCurrent, getSolarWindCurrent } from '@/api/spaceweather'
 import { usePolling } from '@/composables/usePolling'
+import { useExport } from '@/composables/useExport'
 import AppCard from '@/components/AppCard.vue'
 import AppChart from '@/components/AppChart.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import DataTable from '@/components/DataTable.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
-import type { GnssQuality, KpRecord, DstRecord } from '@/types'
+import type { GnssQuality, KpRecord, DstRecord, SolarWindRecord } from '@/types'
+
+const { exportCsv } = useExport()
 
 const gnssQuality = ref<GnssQuality | null>(null)
 const kpData = ref<KpRecord[]>([])
 const dstData = ref<DstRecord[]>([])
 const swAlerts = ref<any[]>([])
+const currentKp = ref<KpRecord | null>(null)
+const currentDst = ref<DstRecord | null>(null)
+const currentSolarWind = ref<SolarWindRecord | null>(null)
 const hours = ref(72)
 
 const alertCols = [
@@ -98,19 +132,34 @@ const alertCols = [
 
 const fetchData = async () => {
   try {
-    const [qualityRes, kpRes, dstRes, alertRes] = await Promise.all([
+    const [qualityRes, kpRes, dstRes, alertRes, kpCurRes, dstCurRes, swCurRes] = await Promise.all([
       getGnssQuality(),
       getKpHistory(hours.value, 0, 500),
       getDstHistory(hours.value, 0, 500),
       getSpaceWeatherAlerts(),
+      getKpCurrent(),
+      getDstCurrent(),
+      getSolarWindCurrent(),
     ])
     if (qualityRes.data.success) gnssQuality.value = qualityRes.data.data
     if (kpRes.data.success && kpRes.data.data) kpData.value = kpRes.data.data.content || []
     if (dstRes.data.success && dstRes.data.data) dstData.value = dstRes.data.data.content || []
     if (alertRes.data.success) swAlerts.value = alertRes.data.data || []
+    currentKp.value = kpCurRes.data.success ? kpCurRes.data.data : null
+    currentDst.value = dstCurRes.data.success ? dstCurRes.data.data : null
+    currentSolarWind.value = swCurRes.data.success ? swCurRes.data.data : null
   } catch (e) {
     console.error('Space weather fetch error:', e)
   }
+}
+
+const handleExport = () => {
+  const date = new Date().toISOString().slice(0, 10)
+  exportCsv(`kp-index-${date}.csv`, [
+    { key: 'time', label: 'Time' },
+    { key: 'kpValue', label: 'Kp' },
+    { key: 'source', label: 'Source' },
+  ], kpData.value)
 }
 
 const { loading } = usePolling(fetchData, 120000)
@@ -242,5 +291,37 @@ const formatTime = (iso: string) => {
   font-family: var(--font-mono);
   font-size: 1.1rem;
   font-weight: 600;
+}
+
+.realtime-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) 0;
+}
+
+.realtime-label {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.realtime-value {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.realtime-detail {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.realtime-time {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
 }
 </style>

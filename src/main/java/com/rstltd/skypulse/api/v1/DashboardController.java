@@ -10,6 +10,12 @@ import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Per-site consolidated dashboard for GNSS monitoring sites.
+ * Returns geo-filtered data (earthquakes within 100km, station-specific rainfall, nearby water levels).
+ * Reserved for future per-site monitoring view (not yet connected to frontend).
+ * For the global system summary used by DashboardView.vue, see {@link MonitorController}.
+ */
 @RestController
 @RequestMapping("/api/v1/dashboard")
 @Tag(name = "Dashboard", description = "Consolidated data for GNSS monitoring sites")

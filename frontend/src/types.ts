@@ -129,6 +129,17 @@ export interface EffectiveRainfallPoint {
   eventAccumulated: number
 }
 
+export interface WeatherForecast {
+  locationName: string
+  forecastTime: string
+  issuedTime: string
+  weatherDesc: string
+  minTemp: number
+  maxTemp: number
+  rainProb: number
+  source: string
+}
+
 export interface RainfallObservation {
   time: string
   stationCode: string
