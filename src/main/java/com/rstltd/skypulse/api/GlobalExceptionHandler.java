@@ -29,13 +29,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<?>> handleBadRequest(IllegalArgumentException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error("BAD_REQUEST", ex.getMessage()));
     }
 
     @ExceptionHandler(DateTimeParseException.class)
     public ResponseEntity<ApiResponse<?>> handleDateTimeParse(DateTimeParseException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error("Invalid date/time format: " + ex.getParsedString()));
+                .body(ApiResponse.error("INVALID_DATE_FORMAT", "Invalid date/time format: " + ex.getParsedString()));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -43,13 +43,13 @@ public class GlobalExceptionHandler {
         String message = String.format("Invalid value '%s' for parameter '%s'",
                 ex.getValue(), ex.getName());
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(message));
+                .body(ApiResponse.error("TYPE_MISMATCH", message));
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiResponse<?>> handleMissingParam(MissingServletRequestParameterException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error("Missing required parameter: " + ex.getParameterName()));
+                .body(ApiResponse.error("MISSING_PARAMETER", "Missing required parameter: " + ex.getParameterName()));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -58,7 +58,7 @@ public class GlobalExceptionHandler {
                 .map(v -> v.getPropertyPath() + ": " + v.getMessage())
                 .collect(Collectors.joining(", "));
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error("Validation failed: " + message));
+                .body(ApiResponse.error("VALIDATION_FAILED", "Validation failed: " + message));
     }
 
     @ExceptionHandler(Exception.class)
@@ -66,6 +66,6 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error: {}", ex.getMessage(), ex);
         systemLogService.logError("API_ERROR", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Internal server error"));
+                .body(ApiResponse.error("INTERNAL_ERROR", "Internal server error"));
     }
 }

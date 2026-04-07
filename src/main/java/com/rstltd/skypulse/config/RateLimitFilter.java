@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rstltd.skypulse.api.dto.ApiResponse;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
+import io.github.bucket4j.ConsumptionProbe;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,24 +40,31 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         String clientIp = getClientIp(request);
 
+        Bucket bucket;
+        long limit;
         if (path.startsWith("/api/v1/backfill/")) {
-            Bucket bucket = backfillBuckets.computeIfAbsent(clientIp, k ->
+            bucket = backfillBuckets.computeIfAbsent(clientIp, k ->
                     Bucket.builder()
                             .addLimit(Bandwidth.simple(5, Duration.ofHours(1)))
                             .build());
-            if (!bucket.tryConsume(1)) {
-                writeRateLimitResponse(response);
-                return;
-            }
+            limit = 5;
         } else {
-            Bucket bucket = apiBuckets.computeIfAbsent(clientIp, k ->
+            bucket = apiBuckets.computeIfAbsent(clientIp, k ->
                     Bucket.builder()
                             .addLimit(Bandwidth.simple(100, Duration.ofMinutes(1)))
                             .build());
-            if (!bucket.tryConsume(1)) {
-                writeRateLimitResponse(response);
-                return;
-            }
+            limit = 100;
+        }
+
+        ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+        response.setHeader("X-RateLimit-Limit", String.valueOf(limit));
+        response.setHeader("X-RateLimit-Remaining", String.valueOf(probe.getRemainingTokens()));
+
+        if (!probe.isConsumed()) {
+            long waitSeconds = probe.getNanosToWaitForRefill() / 1_000_000_000;
+            response.setHeader("Retry-After", String.valueOf(waitSeconds));
+            writeRateLimitResponse(response);
+            return;
         }
 
         filterChain.doFilter(request, response);
@@ -66,7 +74,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         response.setStatus(429);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(),
-                ApiResponse.error("Rate limit exceeded. Please try again later."));
+                ApiResponse.error("RATE_LIMIT_EXCEEDED", "Rate limit exceeded. Please try again later."));
     }
 
     private String getClientIp(HttpServletRequest request) {

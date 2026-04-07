@@ -2,6 +2,7 @@ export interface ApiResponse<T> {
   success: boolean
   data: T | null
   message: string | null
+  errorCode: string | null
 }
 
 export interface LoginResponse {
@@ -140,6 +141,12 @@ export interface WeatherForecast {
   source: string
 }
 
+export interface AccumulatedRainfallResponse {
+  stationCode: string
+  hours: number
+  accumulatedPrecipitation: number
+}
+
 export interface RainfallObservation {
   time: string
   stationCode: string
@@ -183,6 +190,14 @@ export interface LogStats {
   byLevel: Record<string, number>
   bySource: Record<string, number>
   hourly: Array<{ time: string; info: number; warn: number; error: number }>
+}
+
+export interface SiteInfo {
+  siteId: string
+  name: string
+  latitude: number
+  longitude: number
+  associatedStationCode: string
 }
 
 export interface ReservoirStatus {

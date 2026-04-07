@@ -3,10 +3,15 @@ package com.rstltd.skypulse.api.v1;
 import com.rstltd.skypulse.api.dto.ApiResponse;
 import com.rstltd.skypulse.domain.station.Station;
 import com.rstltd.skypulse.repository.StationRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(name = "Stations", description = "Station metadata and coordinates")
 @RestController
 @RequestMapping("/api/v1/stations")
 public class StationController {
@@ -17,10 +22,11 @@ public class StationController {
         this.stationRepository = stationRepository;
     }
 
+    @Operation(summary = "List stations", description = "Returns all stations, optionally filtered by type or source.")
     @GetMapping
     public ApiResponse<List<Station>> getStations(
-            @RequestParam(required = false) String type,
-            @RequestParam(required = false) String source) {
+            @Parameter(schema = @Schema(allowableValues = {"WEATHER", "RAINFALL", "WATER_LEVEL"})) @RequestParam(required = false) String type,
+            @Parameter(schema = @Schema(allowableValues = {"CWA", "WRA", "USGS", "SWPC"})) @RequestParam(required = false) String source) {
         List<Station> stations;
         if (type != null && !type.isBlank()) {
             stations = stationRepository.findByStationType(type);
@@ -30,5 +36,15 @@ public class StationController {
             stations = stationRepository.findAll();
         }
         return ApiResponse.ok(stations);
+    }
+
+    @Operation(summary = "Get stations by codes", description = "Batch lookup by station codes. Max 50 codes.")
+    @GetMapping("/batch")
+    public ApiResponse<List<Station>> getStationsBatch(
+            @RequestParam List<String> codes) {
+        if (codes.size() > 50) {
+            throw new IllegalArgumentException("Maximum 50 station codes per batch request");
+        }
+        return ApiResponse.ok(stationRepository.findByStationCodeIn(codes));
     }
 }

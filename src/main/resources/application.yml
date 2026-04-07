@@ -76,6 +76,8 @@ skypulse:
   logging:
     retention-days: 30
     cleanup-cron: "0 0 3 * * *"
+  sites:
+    list: []
   security:
     api-key: ${SKYPULSE_API_KEY:}
     admin-key: ${SKYPULSE_ADMIN_KEY:}

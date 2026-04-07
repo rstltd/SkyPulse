@@ -3,6 +3,8 @@ package com.rstltd.skypulse.api;
 import com.rstltd.skypulse.api.dto.ApiResponse;
 import com.rstltd.skypulse.api.dto.LoginRequest;
 import com.rstltd.skypulse.api.dto.LoginResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(name = "Auth", description = "Authentication and session management")
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -25,6 +28,7 @@ public class AuthController {
     @Value("${skypulse.security.login.password:}")
     private String loginPassword;
 
+    @Operation(summary = "Login with username and password")
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request,
                                             HttpServletRequest httpRequest) {
@@ -51,6 +55,7 @@ public class AuthController {
         return ApiResponse.ok(new LoginResponse(loginUsername, "ADMIN"));
     }
 
+    @Operation(summary = "Logout and invalidate session")
     @PostMapping("/logout")
     public ApiResponse<String> logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
@@ -61,6 +66,7 @@ public class AuthController {
         return ApiResponse.ok("Logged out");
     }
 
+    @Operation(summary = "Get current authenticated user info")
     @GetMapping("/me")
     public ApiResponse<LoginResponse> me(HttpServletRequest request) {
         HttpSession session = request.getSession(false);

@@ -49,6 +49,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/health").permitAll()
                         .requestMatchers("/api/v1/monitor/**").permitAll()
+                        .requestMatchers("/api/v1/meta/**").permitAll()
                         .requestMatchers("/api/v1/backfill/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/system/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/**").hasRole("USER")
@@ -58,13 +59,13 @@ public class SecurityConfig {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             objectMapper.writeValue(response.getOutputStream(),
-                                    ApiResponse.error("Unauthorized: authentication required"));
+                                    ApiResponse.error("AUTH_REQUIRED", "Unauthorized: authentication required"));
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             objectMapper.writeValue(response.getOutputStream(),
-                                    ApiResponse.error("Forbidden: insufficient permissions"));
+                                    ApiResponse.error("FORBIDDEN", "Forbidden: insufficient permissions"));
                         })
                 );
 

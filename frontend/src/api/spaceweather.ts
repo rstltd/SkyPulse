@@ -21,3 +21,6 @@ export const getSpaceWeatherAlerts = () =>
 
 export const getGnssQuality = () =>
   api.get<ApiResponse<any>>('/spaceweather/gnss-quality')
+
+export const getGnssQualityHistory = (hours = 24) =>
+  api.get<ApiResponse<any[]>>('/spaceweather/gnss-quality/history', { params: { hours } })

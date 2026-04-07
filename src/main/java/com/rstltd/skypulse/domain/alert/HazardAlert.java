@@ -1,5 +1,6 @@
 package com.rstltd.skypulse.domain.alert;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -45,10 +46,12 @@ public class HazardAlert {
     @Column(name = "expires_at")
     private OffsetDateTime expiresAt;
 
+    @JsonIgnore
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_data", columnDefinition = "jsonb")
     private String rawData;
 
+    @JsonIgnore
     @Column(name = "created_at", updatable = false, insertable = false)
     private OffsetDateTime createdAt;
 }

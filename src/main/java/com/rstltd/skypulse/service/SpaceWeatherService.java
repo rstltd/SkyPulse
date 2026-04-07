@@ -105,6 +105,56 @@ public class SpaceWeatherService {
                 assessment, recommendation);
     }
 
+    public List<GnssQualityResponse> getGnssQualityHistory(int hours) {
+        OffsetDateTime now = TimeUtils.nowUtc();
+        OffsetDateTime since = now.minusHours(hours);
+
+        List<KpIndexRecord> kpHistory = kpRepo.findByTimeBetweenOrderByTimeDesc(since, now);
+        List<DstIndexRecord> dstHistory = dstRepo.findByTimeBetweenOrderByTimeDesc(since, now);
+        List<SolarWindRecord> swHistory = solarWindRepo.findByTimeBetweenOrderByTimeDesc(since, now);
+        Integer gScale = getMaxGScale();
+
+        return kpHistory.stream().map(kp -> {
+            BigDecimal dst = findClosest(dstHistory, kp.getTime());
+            BigDecimal bz = null;
+            BigDecimal windSpeed = null;
+            SolarWindRecord closestSw = findClosestSw(swHistory, kp.getTime());
+            if (closestSw != null) {
+                bz = closestSw.getBz();
+                windSpeed = closestSw.getWindSpeed();
+            }
+
+            GnssQualityLevel level = classifyQuality(kp.getKpValue(), dst, gScale);
+            String assessment = buildAssessment(kp.getKpValue(), dst, gScale, level);
+            String recommendation = switch (level) {
+                case NORMAL -> "NORMAL";
+                case CAUTION -> "MONITOR";
+                case DEGRADED, SEVERE -> "FLAG_DISPLACEMENT_DATA";
+            };
+
+            return new GnssQualityResponse(kp.getTime(), level,
+                    kp.getKpValue(), dst, bz, windSpeed,
+                    gScale, null, null, assessment, recommendation);
+        }).toList();
+    }
+
+    private BigDecimal findClosest(List<DstIndexRecord> records, OffsetDateTime target) {
+        return records.stream()
+                .min((a, b) -> Long.compare(
+                        Math.abs(java.time.Duration.between(a.getTime(), target).toSeconds()),
+                        Math.abs(java.time.Duration.between(b.getTime(), target).toSeconds())))
+                .map(DstIndexRecord::getDstValue)
+                .orElse(null);
+    }
+
+    private SolarWindRecord findClosestSw(List<SolarWindRecord> records, OffsetDateTime target) {
+        return records.stream()
+                .min((a, b) -> Long.compare(
+                        Math.abs(java.time.Duration.between(a.getTime(), target).toSeconds()),
+                        Math.abs(java.time.Duration.between(b.getTime(), target).toSeconds())))
+                .orElse(null);
+    }
+
     GnssQualityLevel classifyQuality(BigDecimal kp, BigDecimal dst, Integer gScale) {
         double kpVal = kp != null ? kp.doubleValue() : 0;
         double dstVal = dst != null ? dst.doubleValue() : 0;

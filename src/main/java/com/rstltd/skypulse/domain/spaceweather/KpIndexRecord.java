@@ -1,5 +1,6 @@
 package com.rstltd.skypulse.domain.spaceweather;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,10 +26,12 @@ public class KpIndexRecord {
     @Column(length = 20)
     private String source;
 
+    @JsonIgnore
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_data", columnDefinition = "jsonb")
     private String rawData;
 
+    @JsonIgnore
     @Column(name = "created_at", updatable = false, insertable = false)
     private OffsetDateTime createdAt;
 }

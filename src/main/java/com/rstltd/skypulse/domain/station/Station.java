@@ -1,5 +1,6 @@
 package com.rstltd.skypulse.domain.station;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -56,9 +57,11 @@ public class Station {
     @Column(name = "is_active")
     private Boolean isActive;
 
+    @JsonIgnore
     @Column(name = "created_at", updatable = false, insertable = false)
     private OffsetDateTime createdAt;
 
+    @JsonIgnore
     @Column(name = "updated_at", insertable = false)
     private OffsetDateTime updatedAt;
 }
