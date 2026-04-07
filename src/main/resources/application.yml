@@ -26,6 +26,12 @@ server:
   port: 8080
   servlet:
     context-path: ${SERVER_CONTEXT_PATH:/skypulse}
+    session:
+      timeout: 8h
+      cookie:
+        http-only: true
+        same-site: lax
+        path: ${SERVER_CONTEXT_PATH:/skypulse}
 
 skypulse:
   cwa:
@@ -69,3 +75,6 @@ skypulse:
     api-key: ${SKYPULSE_API_KEY:}
     admin-key: ${SKYPULSE_ADMIN_KEY:}
     cors-origins: ${SKYPULSE_CORS_ORIGINS:http://localhost:8080}
+    login:
+      username: ${SKYPULSE_LOGIN_USER:admin}
+      password: ${SKYPULSE_LOGIN_PASSWORD:}

@@ -110,7 +110,13 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
         obs.setTime(TimeUtils.toUtcOffset(
                 TimeUtils.parseIsoOffset(station.ObsTime().DateTime())));
         obs.setStationCode(station.StationId());
-        obs.setPrecipitation(new BigDecimal(station.RainfallElement().Now().Precipitation()));
+        obs.setPrecipitation(parsePrecip(station.RainfallElement().Now()));
+        obs.setPrecip10min(parsePrecip(station.RainfallElement().Past10Min()));
+        obs.setPrecip1hr(parsePrecip(station.RainfallElement().Past1hr()));
+        obs.setPrecip3hr(parsePrecip(station.RainfallElement().Past3hr()));
+        obs.setPrecip6hr(parsePrecip(station.RainfallElement().Past6Hr()));
+        obs.setPrecip12hr(parsePrecip(station.RainfallElement().Past12hr()));
+        obs.setPrecip24hr(parsePrecip(station.RainfallElement().Past24hr()));
         obs.setSource("CWA");
         try {
             obs.setRawData(objectMapper.writeValueAsString(station));
@@ -118,6 +124,16 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
             log.warn("[CWA_RAINFALL] Failed to serialize raw data for station {}", station.StationId());
         }
         return obs;
+    }
+
+    private BigDecimal parsePrecip(CwaRainfallResponse.PrecipValue pv) {
+        if (pv == null || pv.Precipitation() == null) return null;
+        try {
+            BigDecimal val = new BigDecimal(pv.Precipitation());
+            return val.compareTo(BigDecimal.ZERO) >= 0 ? val : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private void ensureStation(CwaRainfallResponse.Station station) {

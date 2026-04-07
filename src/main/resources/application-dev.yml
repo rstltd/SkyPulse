@@ -3,6 +3,13 @@ spring:
     url: jdbc:postgresql://localhost:5432/skypulse
     password: ${DB_PASSWORD:skypulse_dev}
 
+skypulse:
+  security:
+    cors-origins: http://localhost:8080,http://localhost:5173
+    login:
+      username: ${SKYPULSE_LOGIN_USER:admin}
+      password: ${SKYPULSE_LOGIN_PASSWORD:}
+
 logging:
   level:
     com.rstltd.skypulse: DEBUG

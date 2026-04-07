@@ -27,6 +27,24 @@ public class RainfallObservation {
     @Column(precision = 8, scale = 2)
     private BigDecimal precipitation;
 
+    @Column(name = "precip_10min", precision = 8, scale = 2)
+    private BigDecimal precip10min;
+
+    @Column(name = "precip_1hr", precision = 8, scale = 2)
+    private BigDecimal precip1hr;
+
+    @Column(name = "precip_3hr", precision = 8, scale = 2)
+    private BigDecimal precip3hr;
+
+    @Column(name = "precip_6hr", precision = 8, scale = 2)
+    private BigDecimal precip6hr;
+
+    @Column(name = "precip_12hr", precision = 8, scale = 2)
+    private BigDecimal precip12hr;
+
+    @Column(name = "precip_24hr", precision = 8, scale = 2)
+    private BigDecimal precip24hr;
+
     @Column(nullable = false, length = 20)
     private String source;
 

@@ -1,10 +1,13 @@
 package com.rstltd.skypulse.api.v1;
 
 import com.rstltd.skypulse.api.dto.ApiResponse;
+import com.rstltd.skypulse.api.dto.EffectiveRainfallResponse;
 import com.rstltd.skypulse.domain.weather.RainfallObservation;
 import com.rstltd.skypulse.domain.weather.WeatherForecast;
 import com.rstltd.skypulse.domain.weather.WeatherObservation;
 import com.rstltd.skypulse.service.WeatherService;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -27,8 +30,10 @@ public class WeatherController {
     }
 
     @GetMapping("/rainfall/station/{code}")
-    public ApiResponse<List<RainfallObservation>> getRainfallByStation(@PathVariable String code) {
-        return ApiResponse.ok(weatherService.getRainfallByStation(code));
+    public ApiResponse<List<RainfallObservation>> getRainfallByStation(
+            @PathVariable String code,
+            @RequestParam(defaultValue = "24") @Min(1) @Max(720) int hours) {
+        return ApiResponse.ok(weatherService.getRainfallByStation(code, hours));
     }
 
     @GetMapping("/rainfall/accumulated")
@@ -41,6 +46,18 @@ public class WeatherController {
                 "hours", hours,
                 "accumulatedPrecipitation", accumulated
         ));
+    }
+
+    @GetMapping("/rainfall/effective")
+    public ApiResponse<EffectiveRainfallResponse> getEffectiveRainfall(
+            @RequestParam String stationCode,
+            @RequestParam(defaultValue = "72") @Min(1) @Max(720) int windowHours,
+            @RequestParam(required = false) String endTime) {
+        java.time.OffsetDateTime end = null;
+        if (endTime != null && !endTime.isBlank()) {
+            end = java.time.OffsetDateTime.parse(endTime);
+        }
+        return ApiResponse.ok(weatherService.getEffectiveRainfall(stationCode, windowHours, end));
     }
 
     @GetMapping("/observations/latest")

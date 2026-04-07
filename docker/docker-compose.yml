@@ -30,6 +30,9 @@ services:
       SPRING_DATASOURCE_USERNAME: skypulse
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-skypulse_dev}
       CWA_API_KEY: ${CWA_API_KEY}
+      SKYPULSE_API_KEY: ${SKYPULSE_API_KEY:-}
+      SKYPULSE_ADMIN_KEY: ${SKYPULSE_ADMIN_KEY:-}
+      SKYPULSE_LOGIN_PASSWORD: ${SKYPULSE_LOGIN_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
