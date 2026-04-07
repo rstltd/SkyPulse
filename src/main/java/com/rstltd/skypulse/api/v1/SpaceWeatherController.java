@@ -31,7 +31,7 @@ public class SpaceWeatherController {
         this.spaceWeatherService = spaceWeatherService;
     }
 
-    @Operation(summary = "Get current Kp index")
+    @Operation(summary = "Get current Kp index", description = "Returns the most recent Kp index record.")
     @GetMapping("/kp/current")
     public ResponseEntity<ApiResponse<KpIndexRecord>> getCurrentKp() {
         return spaceWeatherService.getCurrentKp()
@@ -55,7 +55,7 @@ public class SpaceWeatherController {
                 spaceWeatherService.getKpHistoryPaged(hours, PageRequest.of(page, size))));
     }
 
-    @Operation(summary = "Get current Dst index")
+    @Operation(summary = "Get current Dst index", description = "Returns the most recent Dst index record.")
     @GetMapping("/dst/current")
     public ResponseEntity<ApiResponse<DstIndexRecord>> getCurrentDst() {
         return spaceWeatherService.getCurrentDst()
@@ -79,7 +79,7 @@ public class SpaceWeatherController {
                 spaceWeatherService.getDstHistoryPaged(hours, PageRequest.of(page, size))));
     }
 
-    @Operation(summary = "Get current solar wind data")
+    @Operation(summary = "Get current solar wind data", description = "Returns the most recent solar wind record (speed, density, Bz, Bt).")
     @GetMapping("/solar-wind/current")
     public ResponseEntity<ApiResponse<SolarWindRecord>> getCurrentSolarWind() {
         return spaceWeatherService.getCurrentSolarWind()
