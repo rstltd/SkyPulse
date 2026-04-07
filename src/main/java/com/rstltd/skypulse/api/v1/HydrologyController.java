@@ -24,8 +24,11 @@ public class HydrologyController {
     }
 
     @GetMapping("/water-level/station/{code}")
-    public ApiResponse<List<WaterLevelObservation>> getWaterLevelByStation(@PathVariable String code) {
-        return ApiResponse.ok(hydrologyService.getWaterLevelByStation(code));
+    public ApiResponse<List<WaterLevelObservation>> getWaterLevelByStation(
+            @PathVariable String code,
+            @RequestParam(defaultValue = "24") int hours) {
+        int clampedHours = Math.min(Math.max(hours, 1), 168);
+        return ApiResponse.ok(hydrologyService.getWaterLevelByStation(code, clampedHours));
     }
 
     @GetMapping("/reservoirs")

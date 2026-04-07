@@ -243,7 +243,7 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
 
         waterLevelRepo.saveAndFlush(wl);
 
-        var results = waterLevelRepo.findByStationCodeAndTimeBetween("1140H053", T1.minusHours(1), T1.plusHours(1));
+        var results = waterLevelRepo.findByStationCodeAndTimeBetweenOrderByTimeAsc("1140H053", T1.minusHours(1), T1.plusHours(1));
         assertEquals(1, results.size());
     }
 

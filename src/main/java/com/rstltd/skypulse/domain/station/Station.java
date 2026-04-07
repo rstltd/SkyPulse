@@ -44,6 +44,15 @@ public class Station {
     @Column(length = 20)
     private String township;
 
+    @Column(name = "alert_level1", precision = 8, scale = 3)
+    private BigDecimal alertLevel1;
+
+    @Column(name = "alert_level2", precision = 8, scale = 3)
+    private BigDecimal alertLevel2;
+
+    @Column(name = "alert_level3", precision = 8, scale = 3)
+    private BigDecimal alertLevel3;
+
     @Column(name = "is_active")
     private Boolean isActive;
 

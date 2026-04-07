@@ -49,6 +49,8 @@ skypulse:
     base-url: https://opendata.wra.gov.tw/api/v2
     water-level-guid: 73c4c3de-4045-4765-abeb-89f9f9cd5ff0
     reservoir-guid: 2be9044c-6e44-4856-aad5-dd108c2e6679
+    reservoir-daily-guid: 51023e88-4c76-4dbc-bbb9-470da690d539
+    station-info-guid: c4acc691-7416-40ca-9464-292c0c00da92
     schedule:
       water-level: "0 */10 * * * *"
       reservoir: "0 0 * * * *"

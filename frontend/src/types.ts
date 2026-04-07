@@ -19,6 +19,9 @@ export interface Station {
   altitude: number | null
   county: string | null
   township: string | null
+  alertLevel1: number | null
+  alertLevel2: number | null
+  alertLevel3: number | null
   isActive: boolean
 }
 

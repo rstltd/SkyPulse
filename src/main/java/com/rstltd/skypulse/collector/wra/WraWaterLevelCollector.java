@@ -4,10 +4,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rstltd.skypulse.collector.common.CollectorBase;
 import com.rstltd.skypulse.collector.common.CollectorResult;
+import com.rstltd.skypulse.collector.wra.dto.WraStationInfoRecord;
 import com.rstltd.skypulse.collector.wra.dto.WraWaterLevelRecord;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
+import com.rstltd.skypulse.domain.station.Station;
+import com.rstltd.skypulse.repository.StationRepository;
 import com.rstltd.skypulse.repository.WaterLevelObservationRepository;
 import com.rstltd.skypulse.util.TimeUtils;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -18,6 +22,8 @@ import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Component
@@ -25,17 +31,37 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
 
     private final WraApiClient wraApiClient;
     private final WaterLevelObservationRepository waterLevelRepo;
+    private final StationRepository stationRepo;
     private final ObjectMapper objectMapper;
+
+    private static final Pattern COUNTY_PATTERN =
+            Pattern.compile("^(.{2,3}[市縣])");
+    private static final Pattern TOWNSHIP_PATTERN =
+            Pattern.compile("^.{2,3}[市縣](.{2,3}[區鄉鎮市])");
 
     @Value("${skypulse.wra.water-level-guid}")
     private String waterLevelGuid;
 
+    @Value("${skypulse.wra.station-info-guid}")
+    private String stationInfoGuid;
+
     public WraWaterLevelCollector(WraApiClient wraApiClient,
                                   WaterLevelObservationRepository waterLevelRepo,
+                                  StationRepository stationRepo,
                                   ObjectMapper objectMapper) {
         this.wraApiClient = wraApiClient;
         this.waterLevelRepo = waterLevelRepo;
+        this.stationRepo = stationRepo;
         this.objectMapper = objectMapper;
+    }
+
+    @PostConstruct
+    void init() {
+        try {
+            loadStationInfo();
+        } catch (Exception e) {
+            log.warn("[WRA_WATER_LEVEL] Failed to load station info at startup: {}", e.getMessage());
+        }
     }
 
     @Scheduled(cron = "${skypulse.wra.schedule.water-level}")
@@ -94,6 +120,59 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
         return newObs.size();
     }
 
+    private void loadStationInfo() throws JsonProcessingException {
+        String json = wraApiClient.getDataset(stationInfoGuid).block();
+        List<WraStationInfoRecord> records = objectMapper.readValue(json,
+                objectMapper.getTypeFactory().constructCollectionType(
+                        List.class, WraStationInfoRecord.class));
+
+        int registered = 0;
+        int updated = 0;
+        for (WraStationInfoRecord r : records) {
+            if (r.basinidentifier() == null || r.basinidentifier().isBlank()) continue;
+            if (!"現存".equals(r.observationstatus())) continue;
+
+            try {
+                var existing = stationRepo.findByStationCode(r.basinidentifier());
+                if (existing.isPresent()) {
+                    // Update alert levels and normalize location for existing stations
+                    Station station = existing.get();
+                    station.setAlertLevel1(parseSafe(r.alertlevel1()));
+                    station.setAlertLevel2(parseSafe(r.alertlevel2()));
+                    station.setAlertLevel3(parseSafe(r.alertlevel3()));
+                    if (r.locationaddress() != null) {
+                        station.setCounty(parseCounty(r.locationaddress()));
+                        station.setTownship(parseTownship(r.locationaddress()));
+                    }
+                    stationRepo.save(station);
+                    updated++;
+                } else {
+                    Station station = new Station();
+                    station.setStationCode(r.basinidentifier());
+                    station.setStationName(r.observatoryname() != null ? r.observatoryname() : r.basinidentifier());
+                    station.setSource("WRA");
+                    station.setStationType("WATER_LEVEL");
+                    station.setIsActive(true);
+                    station.setAlertLevel1(parseSafe(r.alertlevel1()));
+                    station.setAlertLevel2(parseSafe(r.alertlevel2()));
+                    station.setAlertLevel3(parseSafe(r.alertlevel3()));
+
+                    if (r.locationaddress() != null) {
+                        station.setCounty(parseCounty(r.locationaddress()));
+                        station.setTownship(parseTownship(r.locationaddress()));
+                    }
+
+                    stationRepo.save(station);
+                    registered++;
+                }
+            } catch (Exception e) {
+                log.debug("[WRA_WATER_LEVEL] Failed to process station {}: {}",
+                        r.basinidentifier(), e.getMessage());
+            }
+        }
+        log.info("[WRA_WATER_LEVEL] Stations: {} new, {} updated alert levels", registered, updated);
+    }
+
     private WaterLevelObservation mapToEntity(WraWaterLevelRecord record) {
         WaterLevelObservation obs = new WaterLevelObservation();
         obs.setTime(TimeUtils.toUtcOffset(TimeUtils.parseWraTimestamp(record.datetime())));
@@ -104,6 +183,49 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
             obs.setRawData(objectMapper.writeValueAsString(record));
         } catch (JsonProcessingException ignored) {}
         return obs;
+    }
+
+    static String parseCounty(String address) {
+        if (address == null) return null;
+        Matcher m = COUNTY_PATTERN.matcher(normalizeAddress(address));
+        return m.find() ? normalizeCounty(m.group(1)) : null;
+    }
+
+    static String parseTownship(String address) {
+        if (address == null) return null;
+        Matcher m = TOWNSHIP_PATTERN.matcher(normalizeAddress(address));
+        return m.find() ? normalizeTownship(m.group(1)) : null;
+    }
+
+    /** Normalize address: remove extra whitespace, fix common data issues */
+    static String normalizeAddress(String address) {
+        if (address == null) return null;
+        // Remove extra whitespace within text (e.g., "潭子 區" → "潭子區")
+        return address.replaceAll("\\s+", "");
+    }
+
+    /** Normalize county: 台→臺, fix typos, merge deprecated counties */
+    static String normalizeCounty(String county) {
+        if (county == null) return null;
+        // 台 → 臺 (official standard)
+        county = county.replace("台", "臺");
+        // Fix known typos
+        county = county.replace("苗粟", "苗栗");
+        // Merge deprecated county-level cities into current counties
+        if ("屏東市".equals(county)) return "屏東縣";
+        if ("臺中縣".equals(county)) return "臺中市";
+        return county;
+    }
+
+    /** Normalize township: remove duplicated suffix */
+    static String normalizeTownship(String township) {
+        if (township == null) return null;
+        // Fix duplicated suffix (e.g., "南投市市" → "南投市")
+        township = township.replaceAll("(市)市$", "$1");
+        township = township.replaceAll("(區)區$", "$1");
+        township = township.replaceAll("(鄉)鄉$", "$1");
+        township = township.replaceAll("(鎮)鎮$", "$1");
+        return township;
     }
 
     private BigDecimal parseSafe(String value) {
