@@ -49,8 +49,12 @@ public class WeatherService {
         OffsetDateTime now = TimeUtils.nowUtc();
         List<RainfallObservation> observations = rainfallRepo.findByStationCodeAndTimeBetween(
                 stationCode, now.minusHours(hours), now);
+        // Sum the CWA past-1-hour rainfall (precip_1hr), NOT the daily-cumulative "Now" value
+        // (precipitation). At the current hourly sampling cadence the precip_1hr snapshots are
+        // non-overlapping, so their sum over the window is the rolling accumulated rainfall.
+        // NOTE: revisit in Phase 2 when sampling moves to 10 minutes (precip_1hr would overlap 6x).
         return observations.stream()
-                .map(RainfallObservation::getPrecipitation)
+                .map(RainfallObservation::getPrecip1hr)
                 .filter(p -> p != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
