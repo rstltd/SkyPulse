@@ -111,6 +111,14 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Property-based testing: independent-oracle tests for domain logic -->
+        <dependency>
+            <groupId>net.jqwik</groupId>
+            <artifactId>jqwik</artifactId>
+            <version>1.9.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -125,6 +133,39 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- Mutation testing (experimental). Not bound to a phase; run on demand:
+                 ./mvnw -P'!frontend' test-compile org.pitest:pitest-maven:mutationCoverage
+                 Report: target/pit-reports/index.html -->
+            <plugin>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <version>1.15.8</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-junit5-plugin</artifactId>
+                        <version>1.2.1</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <targetClasses>
+                        <param>com.rstltd.skypulse.util.*</param>
+                        <param>com.rstltd.skypulse.service.SeismicService</param>
+                        <param>com.rstltd.skypulse.service.SpaceWeatherService</param>
+                    </targetClasses>
+                    <targetTests>
+                        <param>com.rstltd.skypulse.util.*</param>
+                        <param>com.rstltd.skypulse.service.Seismic*</param>
+                        <param>com.rstltd.skypulse.service.SpaceWeatherServiceTest</param>
+                    </targetTests>
+                    <outputFormats>
+                        <param>HTML</param>
+                        <param>XML</param>
+                    </outputFormats>
+                    <timestampedReports>false</timestampedReports>
                 </configuration>
             </plugin>
         </plugins>

@@ -52,6 +52,21 @@ class SeismicServiceTest {
     }
 
     @Test
+    void deduplicateEvents_cwaReplacesOnlyMatchingUsgs_notUnrelatedEvents() {
+        var unrelated = buildEvent("USGS-far", T1.plusHours(3), 24.800, 121.200, 5.1, "USGS");
+        var usgs = buildEvent("USGS-1", T1, 23.500, 121.610, 4.6, "USGS");
+        var cwa = buildEvent("CWA-1", T1.plusSeconds(10), 23.502, 121.612, 4.5, "CWA");
+
+        var result = service.deduplicateEvents(List.of(unrelated, usgs, cwa));
+
+        // CWA replaces the matching USGS event only; an unrelated earthquake must survive.
+        assertEquals(2, result.size());
+        assertTrue(result.stream().anyMatch(e -> "USGS-far".equals(e.getEventId())),
+                "the unrelated earthquake must not be removed by CWA de-duplication");
+        assertTrue(result.stream().anyMatch(e -> "CWA".equals(e.getSource())));
+    }
+
+    @Test
     void deduplicateEvents_prefersUsgsIfNoCwa() {
         var usgs1 = buildEvent("USGS-001", T1, 23.5, 121.6, 4.5, "USGS");
         var usgs2 = buildEvent("USGS-002", T1.plusHours(1), 23.8, 121.3, 5.0, "USGS");
@@ -104,6 +119,16 @@ class SeismicServiceTest {
         when(earthquakeRepo.findByTimeBetween(any(), any())).thenReturn(List.of());
 
         assertFalse(service.isDuplicate(T1, 23.5, 121.6, 4.5));
+    }
+
+    @Test
+    void isDuplicate_candidateInWindowButFarAway_returnsFalse() {
+        // A candidate exists inside the ±30s time window but is ~160km away: not a duplicate.
+        var farAway = buildEvent("USGS-x", T1, 25.0, 122.0, 4.6, "USGS");
+        when(earthquakeRepo.findByTimeBetween(any(), any())).thenReturn(List.of(farAway));
+
+        assertFalse(service.isDuplicate(T1, 23.5, 121.6, 4.6),
+                "a candidate in the time window but outside the distance threshold is not a duplicate");
     }
 
     private EarthquakeEvent buildEvent(String eventId, OffsetDateTime time,
