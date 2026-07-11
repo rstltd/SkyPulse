@@ -7,6 +7,7 @@ import com.rstltd.skypulse.collector.common.CollectorResult;
 import com.rstltd.skypulse.collector.swpc.dto.SwpcSolarWindSummary;
 import com.rstltd.skypulse.domain.spaceweather.SolarWindRecord;
 import com.rstltd.skypulse.repository.SolarWindRecordRepository;
+import com.rstltd.skypulse.util.TimeUtils;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -68,7 +69,7 @@ public class SwpcSolarWindCollector extends CollectorBase<SwpcSolarWindSummary> 
     protected int persist(List<SwpcSolarWindSummary> data) {
         int count = 0;
         for (var summary : data) {
-            OffsetDateTime time = LocalDateTime.parse(summary.timeTag()).atOffset(ZoneOffset.UTC);
+            OffsetDateTime time = TimeUtils.toUtcOffset(TimeUtils.parseSwpcIso(summary.timeTag()));
             if (solarWindRepo.existsById(time)) continue;
 
             SolarWindRecord record = new SolarWindRecord();
