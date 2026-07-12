@@ -37,6 +37,9 @@ public class WraReservoirCollector extends CollectorBase<WraReservoirRecord> {
 
     private volatile Map<String, ReservoirRefData> refDataMap;
 
+    /** storage_pct maps to DECIMAL(5,2); guard against overflow from bad reference capacity. */
+    private static final BigDecimal STORAGE_PCT_MAX = new BigDecimal("999.99");
+
     public WraReservoirCollector(WraApiClient wraApiClient,
                                  ReservoirStatusRepository reservoirRepo,
                                  ObjectMapper objectMapper) {
@@ -146,9 +149,17 @@ public class WraReservoirCollector extends CollectorBase<WraReservoirRecord> {
             BigDecimal storage = parseSafe(record.effectivewaterstoragecapacity());
             if (storage != null && ref.capacity() != null
                     && ref.capacity().compareTo(BigDecimal.ZERO) > 0) {
-                rs.setStoragePct(storage.divide(ref.capacity(), 4, RoundingMode.HALF_UP)
+                BigDecimal pct = storage.divide(ref.capacity(), 4, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100))
-                        .setScale(2, RoundingMode.HALF_UP));
+                        .setScale(2, RoundingMode.HALF_UP);
+                // A bad reference capacity (unit mismatch) can produce an implausible pct
+                // that overflows DECIMAL(5,2) and aborts the whole batch; keep other fields.
+                if (pct.abs().compareTo(STORAGE_PCT_MAX) <= 0) {
+                    rs.setStoragePct(pct);
+                } else {
+                    log.warn("[WRA_RESERVOIR] Implausible storage_pct {}% for {} (storage={}, capacity={}); leaving null",
+                            pct, record.reservoiridentifier(), storage, ref.capacity());
+                }
             }
         } else {
             log.debug("[WRA_RESERVOIR] No reference data for reservoir: {}",

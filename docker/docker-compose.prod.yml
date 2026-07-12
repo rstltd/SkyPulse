@@ -3,6 +3,10 @@ services:
     image: timescale/timescaledb:latest-pg16
     container_name: skypulse-db
     restart: unless-stopped
+    # Cap container memory so the JVM + Postgres cannot exhaust a small Raspberry Pi and
+    # trigger the OOM killer. Tune to the target RAM via SKYPULSE_DB_MEM_LIMIT / SKYPULSE_APP_MEM_LIMIT
+    # (dev on docker-compose.yml is intentionally uncapped — the dev machine has ample RAM).
+    mem_limit: ${SKYPULSE_DB_MEM_LIMIT:-1g}
     # No ports exposed — database only accessible from app container via Docker network
     environment:
       POSTGRES_DB: skypulse
@@ -23,6 +27,7 @@ services:
       dockerfile: Dockerfile
     container_name: skypulse-app
     restart: unless-stopped
+    mem_limit: ${SKYPULSE_APP_MEM_LIMIT:-1500m}
     ports:
       - "8080:8080"
     environment:

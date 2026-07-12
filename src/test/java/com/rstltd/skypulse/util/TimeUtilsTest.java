@@ -25,6 +25,33 @@ class TimeUtilsTest {
     }
 
     @Test
+    void parseCwaTimestamp_isoWithOffset() {
+        // CWA earthquake OriginTime new format: 2026-07-08 23:47:21 +08:00 = 15:47:21 UTC
+        Instant result = TimeUtils.parseCwaTimestamp("2026-07-08T23:47:21+08:00");
+        assertEquals(Instant.parse("2026-07-08T15:47:21Z"), result);
+    }
+
+    @Test
+    void parseCwaTimestamp_isoLocalNoOffsetTreatedAsTaipei() {
+        // ISO local (T, no offset) still honoured as Asia/Taipei
+        Instant result = TimeUtils.parseCwaTimestamp("2026-07-08T23:47:21");
+        assertEquals(Instant.parse("2026-07-08T15:47:21Z"), result);
+    }
+
+    @Test
+    void parseSwpcIso_trailingZ() {
+        // SWPC solar-wind summary format with trailing Z (previously crashed persist)
+        Instant result = TimeUtils.parseSwpcIso("2026-07-11T15:59:00Z");
+        assertEquals(Instant.parse("2026-07-11T15:59:00Z"), result);
+    }
+
+    @Test
+    void parseSwpcIso_offsetlessFallbackIsUtc() {
+        Instant result = TimeUtils.parseSwpcIso("2026-07-04T00:00:00");
+        assertEquals(Instant.parse("2026-07-04T00:00:00Z"), result);
+    }
+
+    @Test
     void parseIso_standardFormat() {
         Instant result = TimeUtils.parseIso("2024-01-15T08:00:00.000Z");
         assertEquals(Instant.parse("2024-01-15T08:00:00Z"), result);

@@ -35,6 +35,13 @@
           <span class="user-info">{{ user?.username }}</span>
         </div>
       </header>
+      <div v-if="activeFailure" class="data-status-banner" role="alert">
+        <span class="dsb-icon">&#x26A0;</span>
+        <span class="dsb-text">
+          資料更新失敗（{{ failureTime }}）——畫面顯示的可能是舊資料，不代表一切正常。
+        </span>
+        <button class="dsb-dismiss" @click="dismiss" aria-label="關閉此提示">&#x2715;</button>
+      </div>
       <div class="content-area">
         <slot />
       </div>
@@ -47,10 +54,16 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useDataStatus } from '@/composables/useDataStatus'
 
 const route = useRoute()
 const router = useRouter()
 const { user, logout } = useAuth()
+const { activeFailure, dismiss } = useDataStatus()
+
+const failureTime = computed(() =>
+  activeFailure.value ? activeFailure.value.at.toLocaleTimeString() : ''
+)
 
 const sidebarCollapsed = ref(false)
 const mobileMenuOpen = ref(false)
@@ -245,6 +258,34 @@ const handleLogout = async () => {
 .user-info {
   color: var(--color-text-secondary);
   font-size: 0.875rem;
+}
+
+.data-status-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  background: rgba(234, 179, 8, 0.12);
+  border-bottom: 1px solid var(--color-warning, #eab308);
+  color: var(--color-warning, #eab308);
+  font-size: 0.85rem;
+}
+
+.dsb-icon {
+  flex-shrink: 0;
+}
+
+.dsb-text {
+  flex: 1;
+}
+
+.dsb-dismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 var(--space-xs);
 }
 
 .content-area {

@@ -29,15 +29,4 @@ public class SwpcApiClient {
                 .retrieve()
                 .bodyToMono(String.class);
     }
-
-    /**
-     * Fetch and deserialize a typed response from SWPC endpoint.
-     */
-    public <T> Mono<T> get(String path, Class<T> responseType) {
-        log.debug("Fetching SWPC: {}", path);
-        return webClient.get()
-                .uri(path)
-                .retrieve()
-                .bodyToMono(responseType);
-    }
 }

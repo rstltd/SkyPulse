@@ -6,6 +6,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 public final class TimeUtils {
 
@@ -24,7 +25,20 @@ public final class TimeUtils {
      * CWA returns timestamps like "2024-01-15 08:00:00".
      */
     public static Instant parseCwaTimestamp(String timestamp) {
-        LocalDateTime local = LocalDateTime.parse(timestamp, CWA_FORMAT);
+        String ts = timestamp.trim();
+        // Newer CWA feeds (e.g. earthquake OriginTime) use ISO-8601 with an explicit
+        // offset like "2026-07-08T23:47:21+08:00"; honour the offset when present.
+        try {
+            return OffsetDateTime.parse(ts).toInstant();
+        } catch (DateTimeParseException ignored) {
+            // No offset present — fall through and treat as Asia/Taipei local time.
+        }
+        LocalDateTime local;
+        try {
+            local = LocalDateTime.parse(ts);             // ISO local "2026-07-08T23:47:21"
+        } catch (DateTimeParseException e) {
+            local = LocalDateTime.parse(ts, CWA_FORMAT); // legacy "2026-07-08 23:47:21"
+        }
         return local.atZone(TAIPEI).toInstant();
     }
 
@@ -51,6 +65,19 @@ public final class TimeUtils {
     public static Instant parseSwpcTimestamp(String timestamp) {
         LocalDateTime local = LocalDateTime.parse(timestamp.trim(), SWPC_FORMAT);
         return local.toInstant(ZoneOffset.UTC);
+    }
+
+    /**
+     * Parse an ISO-8601 SWPC timestamp that may carry a trailing 'Z' or offset
+     * (e.g. "2026-07-11T15:59:00Z"), falling back to offsetless UTC.
+     */
+    public static Instant parseSwpcIso(String timestamp) {
+        String ts = timestamp.trim();
+        try {
+            return Instant.parse(ts);                    // handles trailing 'Z' / offset
+        } catch (DateTimeParseException ignored) {
+            return LocalDateTime.parse(ts).toInstant(ZoneOffset.UTC); // offsetless → UTC
+        }
     }
 
     /**

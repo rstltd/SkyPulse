@@ -41,7 +41,7 @@ public class SystemLogService {
             entry.setCategory(LogCategory.COLLECTOR.name());
             entry.setLevel(mapStatusToLevel(result.status()));
             entry.setSource(result.source());
-            entry.setMessage(buildCollectorMessage(result));
+            entry.setMessage(truncate(buildCollectorMessage(result), 500));
             entry.setFetchedCount(result.fetchedCount());
             entry.setValidCount(result.validCount());
             entry.setPersistedCount(result.persistedCount());

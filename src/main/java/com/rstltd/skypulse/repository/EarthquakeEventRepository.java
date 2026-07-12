@@ -18,5 +18,4 @@ public interface EarthquakeEventRepository extends JpaRepository<EarthquakeEvent
     Page<EarthquakeEvent> findByTimeBetween(OffsetDateTime start, OffsetDateTime end, Pageable pageable);
     List<EarthquakeEvent> findByTimeBetweenAndMagnitudeGreaterThanEqual(OffsetDateTime start, OffsetDateTime end, BigDecimal minMagnitude);
     Page<EarthquakeEvent> findByTimeBetweenAndMagnitudeGreaterThanEqual(OffsetDateTime start, OffsetDateTime end, BigDecimal minMagnitude, Pageable pageable);
-    List<EarthquakeEvent> findByTimeBetweenAndSourceNot(OffsetDateTime start, OffsetDateTime end, String source);
 }

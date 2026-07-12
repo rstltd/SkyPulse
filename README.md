@@ -330,9 +330,11 @@ curl -H "X-API-Key: $ADMIN_KEY" http://localhost:8080/api/v1/system/collectors
 
 - **Hypertable** — 時序資料自動分區，查詢效能最佳化
 - **壓縮** — 7 天後自動壓縮，儲存空間節省 ~90%
-- **連續聚合** — 自動計算 3h/24h/48h/72h 累積雨量
+- **累積雨量** — 由 WeatherService 於查詢時計算（sum precip_1hr）；V8 的連續聚合因視窗條件恆真而失效，已於 V13 移除，真正的滾動窗累積於 Phase 2 重建
 
 ### 儲存空間估算
+
+> ⚠️ 下列估算基於舊 schema／每小時取樣；Phase 2 改 10 分鐘取樣 + schema 重畫後將重新計算。
 
 | 期間 | 未壓縮 | 壓縮後 |
 |------|--------|--------|

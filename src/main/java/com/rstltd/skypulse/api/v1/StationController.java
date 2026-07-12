@@ -3,6 +3,7 @@ package com.rstltd.skypulse.api.v1;
 import com.rstltd.skypulse.api.dto.ApiResponse;
 import com.rstltd.skypulse.domain.station.Station;
 import com.rstltd.skypulse.repository.StationRepository;
+import com.rstltd.skypulse.util.TimeUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -28,7 +29,11 @@ public class StationController {
             @Parameter(schema = @Schema(allowableValues = {"WEATHER", "RAINFALL", "WATER_LEVEL"})) @RequestParam(required = false) String type,
             @Parameter(schema = @Schema(allowableValues = {"CWA", "WRA", "USGS", "SWPC"})) @RequestParam(required = false) String source) {
         List<Station> stations;
-        if (type != null && !type.isBlank()) {
+        if ("RAINFALL".equalsIgnoreCase(type)) {
+            // Identify rainfall stations by actual rainfall data, not station_type: shared CWA
+            // codes get typed WEATHER, so a type filter would miss ~half of them.
+            stations = stationRepository.findStationsWithRainfallSince(TimeUtils.nowUtc().minusDays(30));
+        } else if (type != null && !type.isBlank()) {
             stations = stationRepository.findByStationType(type);
         } else if (source != null && !source.isBlank()) {
             stations = stationRepository.findBySource(source);

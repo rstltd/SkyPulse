@@ -6,6 +6,7 @@ import com.rstltd.skypulse.collector.usgs.UsgsApiClient;
 import com.rstltd.skypulse.collector.usgs.dto.GeoJsonResponse;
 import com.rstltd.skypulse.domain.seismic.EarthquakeEvent;
 import com.rstltd.skypulse.repository.EarthquakeEventRepository;
+import com.rstltd.skypulse.service.SeismicService;
 import com.rstltd.skypulse.util.TimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ public class UsgsHistoricalBackfill {
     private final UsgsApiClient usgsApiClient;
     private final EarthquakeEventRepository earthquakeRepo;
     private final ObjectMapper objectMapper;
+    private final SeismicService seismicService;
 
     @Value("${skypulse.usgs.earthquake.min-magnitude}")
     private double minMagnitude;
@@ -40,10 +42,12 @@ public class UsgsHistoricalBackfill {
 
     public UsgsHistoricalBackfill(UsgsApiClient usgsApiClient,
                                    EarthquakeEventRepository earthquakeRepo,
-                                   ObjectMapper objectMapper) {
+                                   ObjectMapper objectMapper,
+                                   SeismicService seismicService) {
         this.usgsApiClient = usgsApiClient;
         this.earthquakeRepo = earthquakeRepo;
         this.objectMapper = objectMapper;
+        this.seismicService = seismicService;
     }
 
     public BackfillResult execute(LocalDate startDate, LocalDate endDate) {
@@ -67,6 +71,15 @@ public class UsgsHistoricalBackfill {
                 for (var feature : features) {
                     String eventId = "USGS-" + feature.id();
                     if (earthquakeRepo.existsByEventId(eventId)) {
+                        totalSkipped++;
+                        continue;
+                    }
+                    // Cross-source dedup: skip a USGS event that matches an existing CWA event,
+                    // mirroring the realtime UsgsEarthquakeCollector (CWA is the preferred source).
+                    var props = feature.properties();
+                    var coords = feature.geometry().coordinates();
+                    var time = TimeUtils.toUtcOffset(TimeUtils.fromEpochMillis(props.time()));
+                    if (seismicService.isDuplicate(time, coords[1], coords[0], props.mag())) {
                         totalSkipped++;
                         continue;
                     }

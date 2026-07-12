@@ -71,7 +71,7 @@ External APIs → **Collector** (scheduled ETL) → **Repository** (JPA) → **S
 ### Key Layers
 
 - **`collector/`** — Scheduled data fetchers (12 collectors). All extend `CollectorBase<T>` which provides `fetch()` → `validate()` → `persist()` lifecycle with retry (exponential backoff, max 2 retries), logging, and timing. Four data sources: `cwa/` (5 collectors), `wra/` (2), `usgs/` (1), `swpc/` (4).
-- **`backfill/`** — One-time historical data import (6 years). Triggered manually via `POST /api/v1/backfill/{source}`. Uses UPSERT to avoid duplicates, supports resume on interruption.
+- **`backfill/`** — One-time historical data import (6 years). Triggered manually via `POST /api/v1/backfill/{source}`. Uses exists-check-then-insert (existsByEventId/existsById) for idempotent dedup, supports resume on interruption.
 - **`domain/`** — JPA entities organized by domain: `weather/`, `seismic/`, `spaceweather/`, `hydrology/`, `alert/`, `station/`, `log/`.
 - **`service/`** — Business logic: `WeatherService` (effective rainfall ETR1/ETR2), `SeismicService` (cross-source dedup), `SpaceWeatherService` (GNSS quality), `HydrologyService` (water level + reservoirs), `AlertService`, `DashboardService` (multi-domain aggregation), `SystemLogService` (audit trail).
 - **`api/`** — REST controllers:
@@ -116,7 +116,7 @@ Rate limiting (Bucket4j):
 ### Database Design
 
 - Time-series tables use TimescaleDB hypertables with 7-day auto-compression
-- Continuous aggregates for accumulated rainfall (3h/24h/48h/72h) — the core landslide warning metric
+- Accumulated rainfall is computed in WeatherService at query time (sum of precip_1hr). The V8 continuous aggregates were broken — a tautological window filter made every window equal the plain hourly sum — and were dropped in V13; true rolling-window accumulation is rebuilt in the Phase 2 schema rework
 - `earthquake_events` is NOT compressed (very low volume: ~5-10 rows/day)
 - All observation tables store `raw_data JSONB` for traceability
 - Segment-by keys: `station_code` for weather/hydrology, `reservoir_id` for reservoirs
@@ -187,6 +187,32 @@ All schedules configured under `skypulse.{source}.schedule` in YAML.
 - Testcontainers 1.20.6 (docker-java 3.4.1) 與 Docker Desktop 29.x (API 1.53) 不相容。改用 Docker Compose 測試 DB (`docker/docker-compose.test.yml`, port 5433)
 - TimescaleDB hypertable 的 UNIQUE/PRIMARY KEY 必須包含分區鍵 (time)，否則 `create_hypertable` 會失敗
 - TimescaleDB continuous aggregates (`CREATE MATERIALIZED VIEW ... WITH (timescaledb.continuous)`) 不能在 transaction 內執行。拆到獨立 Flyway migration 並使用 `WITH NO DATA`
+
+## Testing
+
+Rationale and the full layered pipeline: `docs/TESTING_STRATEGY.md`. The pipeline is deliberately multi-layered so **no single metric (line coverage, mutation score) is a gameable target** — because the same model often writes both the code and its tests, tests must be anchored to oracles that are *independent of the implementation*, not a replay of what the code currently does.
+
+### Hard rules when writing tests (anti-gaming guardrails)
+
+- **Never derive an expected value from the code under test.** Expected values come from an independent source: a spec (SWCB effective-rainfall formulas; the dedup thresholds under "Design Decisions"; CWA/USGS/NOAA docs), a hand calculation, a known sample, a property, or an independent reference implementation.
+- **Prefer relationship-based assertions** (round-trip, symmetry, monotonicity, comparison to a reference) over pinning a magic number that could be back-filled from the implementation.
+- **Property tests (jqwik) encode domain math / spec; they must NOT call the SUT to compute the expected value.** No trivial properties (`assertNotNull`, `x == x`); each property states which wrong implementation it rules out. Canonical example: `SeismicServiceDedupPropertyTest` (symmetry, idempotence, 30s boundary matrix).
+- **Metamorphic relations must come from the spec/physics**, not from observed code behaviour.
+- **Never make a test green by weakening it**: no removing/commenting assertions, empty test bodies, empty `catch` swallowing exceptions, added `retry`/`sleep`, or widened tolerance/float epsilon to hide a real failure. When a property fails, fix the code or correct the oracle against the spec — do not loosen the property to pass.
+- **Snapshot/approval tests only characterize existing trusted code during refactors**, never as the correctness oracle for new behaviour. Do not auto-update `*.approved`/snapshot files.
+- **Integration tests run against real Postgres+TimescaleDB** (`docker/docker-compose.test.yml`, port 5433) — never silently swap to H2/embedded (TimescaleDB semantics would pass falsely; see "Common Errors to Avoid").
+- **Mutation testing (PIT) is a diagnostic, not a KPI.** Judge each surviving mutant: a *productive* survivor = a missing assertion (add a meaningful test); an *equivalent* mutant (e.g. a `>` vs `>=` on a floating-point threshold no input can hit exactly — as with the 10km / 0.3-mag dedup boundaries) must NOT be chased. Never set a global mutation-score target; never expand PIT exclusion lists to raise the number.
+
+### What a human reviews (not the AI)
+
+Oracle provenance (does the expected value trace to an external authority?), assertion intent (why is this value correct?), and a spot-check of surviving mutants / property statements (real gap vs equivalent mutant).
+
+### Commands
+
+```bash
+./mvnw test                                                                 # unit + integration
+./mvnw -P'!frontend' test-compile org.pitest:pitest-maven:mutationCoverage  # mutation diagnostic → target/pit-reports/index.html
+```
 
 ## Workflow Preferences
 
