@@ -5,6 +5,7 @@ import com.rstltd.skypulse.collector.usgs.UsgsApiClient;
 import com.rstltd.skypulse.collector.usgs.dto.GeoJsonResponse;
 import com.rstltd.skypulse.collector.usgs.dto.GeoJsonResponse.*;
 import com.rstltd.skypulse.repository.EarthquakeEventRepository;
+import com.rstltd.skypulse.service.SeismicService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,12 +26,13 @@ class UsgsHistoricalBackfillTest {
 
     @Mock UsgsApiClient usgsApiClient;
     @Mock EarthquakeEventRepository earthquakeRepo;
+    @Mock SeismicService seismicService;
 
     UsgsHistoricalBackfill backfill;
 
     @BeforeEach
     void setUp() {
-        backfill = new UsgsHistoricalBackfill(usgsApiClient, earthquakeRepo, new ObjectMapper());
+        backfill = new UsgsHistoricalBackfill(usgsApiClient, earthquakeRepo, new ObjectMapper(), seismicService);
         ReflectionTestUtils.setField(backfill, "minMagnitude", 4.0);
         ReflectionTestUtils.setField(backfill, "minLatitude", 21.5);
         ReflectionTestUtils.setField(backfill, "maxLatitude", 25.5);
@@ -52,6 +54,7 @@ class UsgsHistoricalBackfillTest {
                 anyDouble(), anyDouble(), any(LocalDate.class), any(LocalDate.class)))
                 .thenReturn(Mono.just(response));
         when(earthquakeRepo.existsByEventId(anyString())).thenReturn(false);
+        when(seismicService.isDuplicate(any(), anyDouble(), anyDouble(), anyDouble())).thenReturn(false);
         when(earthquakeRepo.save(any())).thenAnswer(i -> i.getArgument(0));
 
         BackfillResult result = backfill.execute(
@@ -94,6 +97,7 @@ class UsgsHistoricalBackfillTest {
                 anyDouble(), anyDouble(), any(LocalDate.class), any(LocalDate.class)))
                 .thenReturn(Mono.just(response));
         when(earthquakeRepo.existsByEventId(anyString())).thenReturn(false);
+        when(seismicService.isDuplicate(any(), anyDouble(), anyDouble(), anyDouble())).thenReturn(false);
         when(earthquakeRepo.save(any())).thenAnswer(i -> i.getArgument(0));
 
         BackfillResult result = backfill.execute(

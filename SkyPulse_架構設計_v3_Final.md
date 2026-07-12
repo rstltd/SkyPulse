@@ -5,6 +5,8 @@
 > 部署目標：Raspberry Pi (256 GB SSD)  
 > 應用場景：大規模崩塌監測輔助決策
 
+> ⚠️ **凍結設計稿（2026-03 實作前規劃，非現況）**：本文件反映早期規劃，多處類別名／migration 版本／DTO 名與實建碼不符（例：`CwaClient`→`CwaApiClient`；列 migration V1-V7，實際已至 V14）。正式架構文件將於 Phase 2 schema 重畫後依實建碼重生。**請以 `CLAUDE.md` 與程式碼為準。**
+
 ---
 
 ## 一、專案定位

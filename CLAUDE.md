@@ -71,7 +71,7 @@ External APIs → **Collector** (scheduled ETL) → **Repository** (JPA) → **S
 ### Key Layers
 
 - **`collector/`** — Scheduled data fetchers (12 collectors). All extend `CollectorBase<T>` which provides `fetch()` → `validate()` → `persist()` lifecycle with retry (exponential backoff, max 2 retries), logging, and timing. Four data sources: `cwa/` (5 collectors), `wra/` (2), `usgs/` (1), `swpc/` (4).
-- **`backfill/`** — One-time historical data import (6 years). Triggered manually via `POST /api/v1/backfill/{source}`. Uses UPSERT to avoid duplicates, supports resume on interruption.
+- **`backfill/`** — One-time historical data import (6 years). Triggered manually via `POST /api/v1/backfill/{source}`. Uses exists-check-then-insert (existsByEventId/existsById) for idempotent dedup, supports resume on interruption.
 - **`domain/`** — JPA entities organized by domain: `weather/`, `seismic/`, `spaceweather/`, `hydrology/`, `alert/`, `station/`, `log/`.
 - **`service/`** — Business logic: `WeatherService` (effective rainfall ETR1/ETR2), `SeismicService` (cross-source dedup), `SpaceWeatherService` (GNSS quality), `HydrologyService` (water level + reservoirs), `AlertService`, `DashboardService` (multi-domain aggregation), `SystemLogService` (audit trail).
 - **`api/`** — REST controllers:
@@ -116,7 +116,7 @@ Rate limiting (Bucket4j):
 ### Database Design
 
 - Time-series tables use TimescaleDB hypertables with 7-day auto-compression
-- Continuous aggregates for accumulated rainfall (3h/24h/48h/72h) — the core landslide warning metric
+- Accumulated rainfall is computed in WeatherService at query time (sum of precip_1hr). The V8 continuous aggregates were broken — a tautological window filter made every window equal the plain hourly sum — and were dropped in V13; true rolling-window accumulation is rebuilt in the Phase 2 schema rework
 - `earthquake_events` is NOT compressed (very low volume: ~5-10 rows/day)
 - All observation tables store `raw_data JSONB` for traceability
 - Segment-by keys: `station_code` for weather/hydrology, `reservoir_id` for reservoirs
