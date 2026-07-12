@@ -71,6 +71,7 @@ skypulse:
       dst-index: "0 0 * * * *"
       solar-wind: "0 */5 * * * *"
       alert: "0 */10 * * * *"
+      noaa-scales: "0 */15 * * * *"
   backfill:
     enabled: false
   logging:
