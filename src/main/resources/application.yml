@@ -72,8 +72,18 @@ skypulse:
       solar-wind: "0 */5 * * * *"
       alert: "0 */10 * * * *"
       noaa-scales: "0 */15 * * * *"
+  swcb:
+    base-url: https://246.ardswc.gov.tw
+    schedule:
+      # Reference baselines change rarely; refresh daily (offset from other jobs).
+      township-alert: "0 20 4 * * *"
+      debris-stream: "0 40 4 * * *"
   backfill:
     enabled: false
+  collectors:
+    # Eagerly load slowly-changing reference data (reservoir dimension, SWCB baselines) at
+    # startup so it is available before the first scheduled run. Disabled in tests.
+    eager-startup-load: true
   logging:
     retention-days: 30
     cleanup-cron: "0 0 3 * * *"

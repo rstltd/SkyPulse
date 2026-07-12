@@ -18,6 +18,9 @@ skypulse:
     api-key: test-key
   backfill:
     enabled: false
+  collectors:
+    # Keep tests offline + deterministic: no live reference-data fetch/write at context load.
+    eager-startup-load: false
   security:
     api-key: test-api-key
     admin-key: test-admin-key

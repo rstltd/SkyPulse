@@ -38,6 +38,9 @@ public class WraReservoirCollector extends CollectorBase<WraReservoirRecord> {
     @Value("${skypulse.wra.reservoir-daily-guid}")
     private String reservoirDailyGuid;
 
+    @Value("${skypulse.collectors.eager-startup-load:true}")
+    private boolean eagerStartupLoad;
+
     private volatile Map<String, ReservoirRefData> refDataMap;
 
     /** storage_pct maps to DECIMAL(6,2); guard against overflow from bad reference capacity. */
@@ -55,6 +58,7 @@ public class WraReservoirCollector extends CollectorBase<WraReservoirRecord> {
 
     @PostConstruct
     void init() {
+        if (!eagerStartupLoad) return;
         try {
             refDataMap = loadRefData();
         } catch (Exception e) {

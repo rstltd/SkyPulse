@@ -308,11 +308,12 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
 
     @Test
     void saveAndFindDebrisStream() {
+        // Synthetic county/town so the query does not collide with real SWCB reference data.
         DebrisStream d = new DebrisStream();
-        d.setDebrisNo("宜縣DF001");
-        d.setCounty("宜蘭縣");
-        d.setTown("三星鄉");
-        d.setVillage("大隱村");
+        d.setDebrisNo("測試DF001");
+        d.setCounty("測試縣");
+        d.setTown("測試鄉");
+        d.setVillage("測試村");
         d.setAlertValue(new BigDecimal("350.00"));
         d.setRefStation1("C0U890");
         d.setRefRatio1(new BigDecimal("0.700"));
@@ -321,7 +322,7 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
 
         debrisStreamRepo.saveAndFlush(d);
 
-        var byTown = debrisStreamRepo.findByCountyAndTown("宜蘭縣", "三星鄉");
+        var byTown = debrisStreamRepo.findByCountyAndTown("測試縣", "測試鄉");
         assertEquals(1, byTown.size());
         assertEquals(0, new BigDecimal("350.00").compareTo(byTown.get(0).getAlertValue()));
     }
@@ -329,13 +330,13 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
     @Test
     void saveAndFindTownshipAlertBaseline() {
         TownshipAlertBaseline t = new TownshipAlertBaseline();
-        t.setCounty("南投縣");
-        t.setTown("信義鄉");
+        t.setCounty("測試縣");
+        t.setTown("測試鄉");
         t.setAlertValue(new BigDecimal("250.00"));
 
         townshipAlertRepo.saveAndFlush(t);
 
-        var found = townshipAlertRepo.findById(new com.rstltd.skypulse.domain.alert.TownshipAlertBaselineId("南投縣", "信義鄉"));
+        var found = townshipAlertRepo.findById(new com.rstltd.skypulse.domain.alert.TownshipAlertBaselineId("測試縣", "測試鄉"));
         assertTrue(found.isPresent());
         assertEquals(0, new BigDecimal("250.00").compareTo(found.get().getAlertValue()));
     }
