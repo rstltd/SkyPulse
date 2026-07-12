@@ -2,17 +2,22 @@ package com.rstltd.skypulse.collector.wra;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rstltd.skypulse.collector.common.CollectorResult;
-import com.rstltd.skypulse.repository.StationRepository;
+import com.rstltd.skypulse.domain.station.WaterLevelStation;
 import com.rstltd.skypulse.repository.WaterLevelObservationRepository;
+import com.rstltd.skypulse.repository.WaterLevelStationRepository;
+import com.rstltd.skypulse.service.StationRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -23,13 +28,15 @@ class WraWaterLevelCollectorTest {
 
     @Mock WraApiClient wraApiClient;
     @Mock WaterLevelObservationRepository waterLevelRepo;
-    @Mock StationRepository stationRepo;
+    @Mock StationRegistry stationRegistry;
+    @Mock WaterLevelStationRepository waterLevelStationRepo;
 
     WraWaterLevelCollector collector;
 
     @BeforeEach
     void setUp() {
-        collector = new WraWaterLevelCollector(wraApiClient, waterLevelRepo, stationRepo, new ObjectMapper());
+        collector = new WraWaterLevelCollector(
+                wraApiClient, waterLevelRepo, stationRegistry, waterLevelStationRepo, new ObjectMapper());
         ReflectionTestUtils.setField(collector, "waterLevelGuid", "test-guid");
         ReflectionTestUtils.setField(collector, "stationInfoGuid", "test-station-guid");
     }
@@ -106,7 +113,7 @@ class WraWaterLevelCollectorTest {
     }
 
     @Test
-    void init_registersNewStationsWithAlertLevels() {
+    void init_registersWaterLevelStationWithAlertLevels() {
         String stationJson = """
                 [{"basinidentifier":"1010H006","observatoryname":"新磺溪橋",
                   "rivername":"磺溪","locationaddress":"新北市金山區金山里",
@@ -116,40 +123,42 @@ class WraWaterLevelCollectorTest {
                   "observationstatus":"已廢","alertlevel1":"","alertlevel2":"","alertlevel3":""}]
                 """;
         when(wraApiClient.getDataset("test-station-guid")).thenReturn(Mono.just(stationJson));
-        when(stationRepo.findByStationCode(anyString())).thenReturn(java.util.Optional.empty());
-        when(stationRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(waterLevelStationRepo.findById(anyString())).thenReturn(Optional.empty());
+        when(waterLevelStationRepo.save(any())).thenAnswer(i -> i.getArgument(0));
 
         collector.init();
 
-        // Only "現存" stations should be registered (1 out of 2)
-        var captor = org.mockito.ArgumentCaptor.forClass(com.rstltd.skypulse.domain.station.Station.class);
-        verify(stationRepo, times(1)).save(captor.capture());
-        var saved = captor.getValue();
-        assertEquals(new java.math.BigDecimal("5.8"), saved.getAlertLevel1());
-        assertEquals(new java.math.BigDecimal("4.6"), saved.getAlertLevel2());
+        // Only "現存" stations are processed (1 of 2): registered with WATER_LEVEL capability,
+        // with alert thresholds written to water_level_station.
+        verify(stationRegistry, times(1)).register(eq("1010H006"), any(), eq("WRA"),
+                any(), any(), any(), any(), any(), eq("WATER_LEVEL"), any());
+        ArgumentCaptor<WaterLevelStation> captor = ArgumentCaptor.forClass(WaterLevelStation.class);
+        verify(waterLevelStationRepo, times(1)).save(captor.capture());
+        WaterLevelStation saved = captor.getValue();
+        assertEquals(new BigDecimal("5.8"), saved.getAlertLevel1());
+        assertEquals(new BigDecimal("4.6"), saved.getAlertLevel2());
         assertNull(saved.getAlertLevel3());
     }
 
     @Test
-    void init_updatesAlertLevelsForExistingStations() {
+    void init_updatesAlertLevelsForExistingWaterLevelStation() {
         String stationJson = """
                 [{"basinidentifier":"1010H006","observatoryname":"新磺溪橋",
                   "rivername":"磺溪","locationaddress":"新北市金山區金山里",
                   "observationstatus":"現存","alertlevel1":"5.8","alertlevel2":"4.6","alertlevel3":"3.0"}]
                 """;
-        var existing = new com.rstltd.skypulse.domain.station.Station();
+        WaterLevelStation existing = new WaterLevelStation();
         existing.setStationCode("1010H006");
-        existing.setStationName("新磺溪橋");
         when(wraApiClient.getDataset("test-station-guid")).thenReturn(Mono.just(stationJson));
-        when(stationRepo.findByStationCode("1010H006")).thenReturn(java.util.Optional.of(existing));
-        when(stationRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(waterLevelStationRepo.findById("1010H006")).thenReturn(Optional.of(existing));
+        when(waterLevelStationRepo.save(any())).thenAnswer(i -> i.getArgument(0));
 
         collector.init();
 
-        verify(stationRepo, times(1)).save(any());
-        assertEquals(new java.math.BigDecimal("5.8"), existing.getAlertLevel1());
-        assertEquals(new java.math.BigDecimal("4.6"), existing.getAlertLevel2());
-        assertEquals(new java.math.BigDecimal("3.0"), existing.getAlertLevel3());
+        verify(waterLevelStationRepo, times(1)).save(any());
+        assertEquals(new BigDecimal("5.8"), existing.getAlertLevel1());
+        assertEquals(new BigDecimal("4.6"), existing.getAlertLevel2());
+        assertEquals(new BigDecimal("3.0"), existing.getAlertLevel3());
     }
 
     @Test

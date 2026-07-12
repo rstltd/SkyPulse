@@ -7,7 +7,7 @@ import com.rstltd.skypulse.collector.common.CollectorResult;
 import com.rstltd.skypulse.collector.cwa.dto.CwaRainfallResponse;
 import com.rstltd.skypulse.domain.weather.RainfallObservation;
 import com.rstltd.skypulse.repository.RainfallObservationRepository;
-import com.rstltd.skypulse.repository.StationRepository;
+import com.rstltd.skypulse.service.StationRegistry;
 import com.rstltd.skypulse.util.TimeUtils;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -25,16 +25,16 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
 
     private final CwaApiClient cwaApiClient;
     private final RainfallObservationRepository rainfallRepo;
-    private final StationRepository stationRepo;
+    private final StationRegistry stationRegistry;
     private final ObjectMapper objectMapper;
 
     public CwaRainfallCollector(CwaApiClient cwaApiClient,
                                 RainfallObservationRepository rainfallRepo,
-                                StationRepository stationRepo,
+                                StationRegistry stationRegistry,
                                 ObjectMapper objectMapper) {
         this.cwaApiClient = cwaApiClient;
         this.rainfallRepo = rainfallRepo;
-        this.stationRepo = stationRepo;
+        this.stationRegistry = stationRegistry;
         this.objectMapper = objectMapper;
     }
 
@@ -137,37 +137,28 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
     }
 
     private void ensureStation(CwaRainfallResponse.Station station) {
-        if (stationRepo.existsByStationCode(station.StationId())) {
-            return;
-        }
         try {
-            var entity = new com.rstltd.skypulse.domain.station.Station();
-            entity.setStationCode(station.StationId());
-            entity.setStationName(station.StationName());
-            entity.setSource("CWA");
-            entity.setStationType("RAINFALL");
-            entity.setIsActive(true);
-
-            if (station.GeoInfo() != null) {
-                entity.setCounty(station.GeoInfo().CountyName());
-                entity.setTownship(station.GeoInfo().TownName());
-                if (station.GeoInfo().StationAltitude() != null) {
-                    entity.setAltitude(new BigDecimal(station.GeoInfo().StationAltitude()));
-                }
-                // Use WGS84 coordinates
-                if (station.GeoInfo().Coordinates() != null) {
-                    station.GeoInfo().Coordinates().stream()
+            var geo = station.GeoInfo();
+            BigDecimal lat = null, lon = null, altitude = null;
+            String county = null, township = null;
+            if (geo != null) {
+                county = geo.CountyName();
+                township = geo.TownName();
+                if (geo.StationAltitude() != null) altitude = new BigDecimal(geo.StationAltitude());
+                if (geo.Coordinates() != null) {
+                    var wgs = geo.Coordinates().stream()
                             .filter(c -> "WGS84".equals(c.CoordinateName()))
-                            .findFirst()
-                            .ifPresent(c -> {
-                                entity.setLatitude(new BigDecimal(c.StationLatitude()));
-                                entity.setLongitude(new BigDecimal(c.StationLongitude()));
-                            });
+                            .findFirst().orElse(null);
+                    if (wgs != null) {
+                        lat = new BigDecimal(wgs.StationLatitude());
+                        lon = new BigDecimal(wgs.StationLongitude());
+                    }
                 }
             }
-            stationRepo.save(entity);
+            stationRegistry.register(station.StationId(), station.StationName(), "CWA",
+                    lat, lon, altitude, county, township, "RAINFALL", "O-A0002-001");
         } catch (Exception e) {
-            log.debug("[CWA_RAINFALL] Station {} already exists or save failed: {}",
+            log.debug("[CWA_RAINFALL] Station register failed for {}: {}",
                     station.StationId(), e.getMessage());
         }
     }

@@ -50,13 +50,12 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
         s.setStationCode("C0D660");
         s.setStationName("日月潭");
         s.setSource("CWA");
-        s.setStationType("RAINFALL");
         s.setLatitude(new BigDecimal("23.881200"));
         s.setLongitude(new BigDecimal("120.908100"));
         s.setIsActive(true);
 
         Station saved = stationRepo.saveAndFlush(s);
-        assertNotNull(saved.getId());
+        assertEquals("C0D660", saved.getStationCode());
 
         assertTrue(stationRepo.existsByStationCode("C0D660"));
         var found = stationRepo.findByStationCode("C0D660");

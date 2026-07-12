@@ -6,8 +6,8 @@ import com.rstltd.skypulse.collector.common.CollectorBase;
 import com.rstltd.skypulse.collector.common.CollectorResult;
 import com.rstltd.skypulse.collector.cwa.dto.CwaWeatherResponse;
 import com.rstltd.skypulse.domain.weather.WeatherObservation;
-import com.rstltd.skypulse.repository.StationRepository;
 import com.rstltd.skypulse.repository.WeatherObservationRepository;
+import com.rstltd.skypulse.service.StationRegistry;
 import com.rstltd.skypulse.util.TimeUtils;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -25,16 +25,16 @@ public class CwaWeatherCollector extends CollectorBase<CwaWeatherResponse.Statio
 
     private final CwaApiClient cwaApiClient;
     private final WeatherObservationRepository weatherRepo;
-    private final StationRepository stationRepo;
+    private final StationRegistry stationRegistry;
     private final ObjectMapper objectMapper;
 
     public CwaWeatherCollector(CwaApiClient cwaApiClient,
                                WeatherObservationRepository weatherRepo,
-                               StationRepository stationRepo,
+                               StationRegistry stationRegistry,
                                ObjectMapper objectMapper) {
         this.cwaApiClient = cwaApiClient;
         this.weatherRepo = weatherRepo;
-        this.stationRepo = stationRepo;
+        this.stationRegistry = stationRegistry;
         this.objectMapper = objectMapper;
     }
 
@@ -130,35 +130,28 @@ public class CwaWeatherCollector extends CollectorBase<CwaWeatherResponse.Statio
     }
 
     private void ensureStation(CwaWeatherResponse.Station station) {
-        if (stationRepo.existsByStationCode(station.StationId())) {
-            return;
-        }
         try {
-            var entity = new com.rstltd.skypulse.domain.station.Station();
-            entity.setStationCode(station.StationId());
-            entity.setStationName(station.StationName());
-            entity.setSource("CWA");
-            entity.setStationType("WEATHER");
-            entity.setIsActive(true);
-            if (station.GeoInfo() != null) {
-                entity.setCounty(station.GeoInfo().CountyName());
-                entity.setTownship(station.GeoInfo().TownName());
-                if (station.GeoInfo().StationAltitude() != null) {
-                    entity.setAltitude(parseSafe(station.GeoInfo().StationAltitude()));
-                }
-                if (station.GeoInfo().Coordinates() != null) {
-                    station.GeoInfo().Coordinates().stream()
+            var geo = station.GeoInfo();
+            BigDecimal lat = null, lon = null, altitude = null;
+            String county = null, township = null;
+            if (geo != null) {
+                county = geo.CountyName();
+                township = geo.TownName();
+                altitude = parseSafe(geo.StationAltitude());
+                if (geo.Coordinates() != null) {
+                    var wgs = geo.Coordinates().stream()
                             .filter(c -> "WGS84".equals(c.CoordinateName()))
-                            .findFirst()
-                            .ifPresent(c -> {
-                                entity.setLatitude(parseSafe(c.StationLatitude()));
-                                entity.setLongitude(parseSafe(c.StationLongitude()));
-                            });
+                            .findFirst().orElse(null);
+                    if (wgs != null) {
+                        lat = parseSafe(wgs.StationLatitude());
+                        lon = parseSafe(wgs.StationLongitude());
+                    }
                 }
             }
-            stationRepo.save(entity);
+            stationRegistry.register(station.StationId(), station.StationName(), "CWA",
+                    lat, lon, altitude, county, township, "WEATHER", "O-A0001-001");
         } catch (Exception e) {
-            log.debug("[CWA_WEATHER] Station save failed: {}", e.getMessage());
+            log.debug("[CWA_WEATHER] Station register failed: {}", e.getMessage());
         }
     }
 }
