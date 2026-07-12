@@ -42,11 +42,6 @@ public class SpaceWeatherService {
         return kpRepo.findTopByOrderByTimeDesc();
     }
 
-    public List<KpIndexRecord> getKpHistory(int hours) {
-        OffsetDateTime now = TimeUtils.nowUtc();
-        return kpRepo.findByTimeBetweenOrderByTimeDesc(now.minusHours(hours), now);
-    }
-
     public Page<KpIndexRecord> getKpHistoryPaged(int hours, Pageable pageable) {
         OffsetDateTime now = TimeUtils.nowUtc();
         return kpRepo.findByTimeBetweenOrderByTimeDesc(now.minusHours(hours), now, pageable);
@@ -54,11 +49,6 @@ public class SpaceWeatherService {
 
     public Optional<DstIndexRecord> getCurrentDst() {
         return dstRepo.findTopByOrderByTimeDesc();
-    }
-
-    public List<DstIndexRecord> getDstHistory(int hours) {
-        OffsetDateTime now = TimeUtils.nowUtc();
-        return dstRepo.findByTimeBetweenOrderByTimeDesc(now.minusHours(hours), now);
     }
 
     public Page<DstIndexRecord> getDstHistoryPaged(int hours, Pageable pageable) {
