@@ -1,7 +1,9 @@
 package com.rstltd.skypulse.repository;
 
 import com.rstltd.skypulse.IntegrationTestBase;
+import com.rstltd.skypulse.domain.alert.DebrisStream;
 import com.rstltd.skypulse.domain.alert.HazardAlert;
+import com.rstltd.skypulse.domain.alert.TownshipAlertBaseline;
 import com.rstltd.skypulse.domain.hydrology.Reservoir;
 import com.rstltd.skypulse.domain.hydrology.ReservoirStatus;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
@@ -41,6 +43,8 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
     @Autowired ReservoirStatusRepository reservoirRepo;
     @Autowired ReservoirRepository reservoirDimRepo;
     @Autowired HazardAlertRepository hazardAlertRepo;
+    @Autowired DebrisStreamRepository debrisStreamRepo;
+    @Autowired TownshipAlertBaselineRepository townshipAlertRepo;
 
     private static final OffsetDateTime T1 = OffsetDateTime.of(2024, 1, 15, 8, 0, 0, 0, ZoneOffset.UTC);
     private static final OffsetDateTime T2 = OffsetDateTime.of(2024, 1, 15, 9, 0, 0, 0, ZoneOffset.UTC);
@@ -300,6 +304,40 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
         var found = hazardAlertRepo.findBySourceAlertId("CWA-2024-001");
         assertTrue(found.isPresent());
         assertEquals("豪雨特報", found.get().getTitle());
+    }
+
+    @Test
+    void saveAndFindDebrisStream() {
+        DebrisStream d = new DebrisStream();
+        d.setDebrisNo("宜縣DF001");
+        d.setCounty("宜蘭縣");
+        d.setTown("三星鄉");
+        d.setVillage("大隱村");
+        d.setAlertValue(new BigDecimal("350.00"));
+        d.setRefStation1("C0U890");
+        d.setRefRatio1(new BigDecimal("0.700"));
+        d.setRefStation2("C0U900");
+        d.setRefRatio2(new BigDecimal("0.300"));
+
+        debrisStreamRepo.saveAndFlush(d);
+
+        var byTown = debrisStreamRepo.findByCountyAndTown("宜蘭縣", "三星鄉");
+        assertEquals(1, byTown.size());
+        assertEquals(0, new BigDecimal("350.00").compareTo(byTown.get(0).getAlertValue()));
+    }
+
+    @Test
+    void saveAndFindTownshipAlertBaseline() {
+        TownshipAlertBaseline t = new TownshipAlertBaseline();
+        t.setCounty("南投縣");
+        t.setTown("信義鄉");
+        t.setAlertValue(new BigDecimal("250.00"));
+
+        townshipAlertRepo.saveAndFlush(t);
+
+        var found = townshipAlertRepo.findById(new com.rstltd.skypulse.domain.alert.TownshipAlertBaselineId("南投縣", "信義鄉"));
+        assertTrue(found.isPresent());
+        assertEquals(0, new BigDecimal("250.00").compareTo(found.get().getAlertValue()));
     }
 
     @Test
