@@ -9,6 +9,7 @@ public record WraStationInfoRecord(
         String rivername,
         String locationaddress,
         String observationstatus,
+        String locationbytwd97_xy,
         String alertlevel1,
         String alertlevel2,
         String alertlevel3

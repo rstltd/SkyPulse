@@ -11,6 +11,7 @@ import com.rstltd.skypulse.domain.station.WaterLevelStation;
 import com.rstltd.skypulse.repository.WaterLevelObservationRepository;
 import com.rstltd.skypulse.repository.WaterLevelStationRepository;
 import com.rstltd.skypulse.service.StationRegistry;
+import com.rstltd.skypulse.util.CoordinateConverter;
 import com.rstltd.skypulse.util.TimeUtils;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
@@ -142,10 +143,16 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
                     county = parseCounty(r.locationaddress());
                     township = parseTownship(r.locationaddress());
                 }
-                // Coordinates are added in step 3 (WRA locationbytwd97_xy -> WGS84 via proj4j).
+                // WRA reports TWD97 TM2 easting/northing; reproject to WGS84 for coordinate queries.
+                BigDecimal lat = null, lon = null;
+                var ll = CoordinateConverter.fromTwd97Xy(r.locationbytwd97_xy());
+                if (ll != null) {
+                    lat = BigDecimal.valueOf(ll.lat());
+                    lon = BigDecimal.valueOf(ll.lon());
+                }
                 stationRegistry.register(code,
                         r.observatoryname() != null ? r.observatoryname() : code, "WRA",
-                        null, null, null, county, township, "WATER_LEVEL", stationInfoGuid);
+                        lat, lon, null, county, township, "WATER_LEVEL", stationInfoGuid);
 
                 WaterLevelStation wls = waterLevelStationRepo.findById(code).orElseGet(() -> {
                     WaterLevelStation w = new WaterLevelStation();
