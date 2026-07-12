@@ -62,6 +62,14 @@ public class WebClientConfig {
                 .build();
     }
 
+    @Bean("moenvWebClient")
+    public WebClient moenvWebClient(@Value("${skypulse.moenv.base-url}") String baseUrl) {
+        return WebClient.builder()
+                .baseUrl(baseUrl)
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(5 * 1024 * 1024))
+                .build();
+    }
+
     @Bean("omniWebWebClient")
     public WebClient omniWebWebClient() {
         return WebClient.builder()

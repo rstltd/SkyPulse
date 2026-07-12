@@ -78,6 +78,12 @@ skypulse:
       # Reference baselines change rarely; refresh daily (offset from other jobs).
       township-alert: "0 20 4 * * *"
       debris-stream: "0 40 4 * * *"
+  moenv:
+    base-url: https://data.moenv.gov.tw/api/v2
+    api-key: ${MOENV_API_KEY:}
+    reservoir-dataset: GISEPA_P_27
+    schedule:
+      reservoir-coords: "0 50 4 * * *"
   backfill:
     enabled: false
   collectors:
