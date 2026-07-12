@@ -16,7 +16,9 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class CwaForecastCollector extends CollectorBase<CwaForecastResponse.Location> {
@@ -72,11 +74,27 @@ public class CwaForecastCollector extends CollectorBase<CwaForecastResponse.Loca
             forecasts.addAll(mapToEntities(location, issuedTime));
         }
 
-        if (!forecasts.isEmpty()) {
-            forecastRepo.saveAll(forecasts);
-            forecastRepo.flush();
+        if (forecasts.isEmpty()) return 0;
+
+        // Upsert on the natural key (location_name, forecast_time): reuse the existing row's id
+        // so each 6h collection updates the forecast slot in place instead of inserting a new
+        // row under a fresh issued_time (which would grow the table without bound).
+        Map<String, Long> existingIds = new HashMap<>();
+        for (Object[] slot : forecastRepo.findAllForecastSlots()) {
+            existingIds.put(slotKey((String) slot[1], (OffsetDateTime) slot[2]), (Long) slot[0]);
         }
+        for (WeatherForecast fc : forecasts) {
+            Long id = existingIds.get(slotKey(fc.getLocationName(), fc.getForecastTime()));
+            if (id != null) fc.setId(id);
+        }
+
+        forecastRepo.saveAll(forecasts);
+        forecastRepo.flush();
         return forecasts.size();
+    }
+
+    private static String slotKey(String locationName, OffsetDateTime forecastTime) {
+        return locationName + "|" + forecastTime;
     }
 
     private List<WeatherForecast> mapToEntities(CwaForecastResponse.Location location,

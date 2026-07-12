@@ -109,6 +109,7 @@ public class CwaWeatherCollector extends CollectorBase<CwaWeatherResponse.Statio
         if (we.Now() != null) {
             obs.setPrecipitation(parseSafe(we.Now().Precipitation()));
         }
+        obs.setWeatherDesc(we.Weather());
         obs.setSource("CWA");
         try {
             obs.setRawData(objectMapper.writeValueAsString(station));

@@ -39,8 +39,10 @@ CREATE TABLE weather_observations (
     CONSTRAINT weather_obs_time_station_unique UNIQUE (time, station_code)
 );
 
--- Weekly township forecasts. Natural key prevents the unbounded duplicate growth of the
--- old schema (which re-inserted the whole forecast every 6h with a new issued_time).
+-- Weekly township forecasts. Natural key (location, forecast_time) keeps exactly one row per
+-- forecast slot: each 6h collection UPSERTs it in place (issued_time = last refresh). This
+-- prevents the unbounded duplicate growth of the old schema, which re-inserted the whole
+-- forecast every 6h under a new wall-clock issued_time (F-D0047-091 carries no CWA issue time).
 CREATE TABLE weather_forecasts (
     id            BIGSERIAL PRIMARY KEY,
     location_name VARCHAR(50) NOT NULL,
@@ -53,6 +55,6 @@ CREATE TABLE weather_forecasts (
     source        VARCHAR(20) DEFAULT 'CWA',
     raw_data      JSONB,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT weather_forecast_unique UNIQUE (location_name, forecast_time, issued_time)
+    CONSTRAINT weather_forecast_unique UNIQUE (location_name, forecast_time)
 );
 CREATE INDEX idx_forecast_location_time ON weather_forecasts (location_name, forecast_time);
