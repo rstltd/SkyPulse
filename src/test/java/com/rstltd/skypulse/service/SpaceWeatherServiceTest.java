@@ -4,9 +4,11 @@ import com.rstltd.skypulse.api.dto.GnssQualityLevel;
 import com.rstltd.skypulse.api.dto.GnssQualityResponse;
 import com.rstltd.skypulse.domain.spaceweather.DstIndexRecord;
 import com.rstltd.skypulse.domain.spaceweather.KpIndexRecord;
+import com.rstltd.skypulse.domain.spaceweather.NoaaScale;
 import com.rstltd.skypulse.domain.spaceweather.SolarWindRecord;
 import com.rstltd.skypulse.repository.DstIndexRecordRepository;
 import com.rstltd.skypulse.repository.KpIndexRecordRepository;
+import com.rstltd.skypulse.repository.NoaaScaleRepository;
 import com.rstltd.skypulse.repository.SolarWindRecordRepository;
 import com.rstltd.skypulse.repository.SpaceWeatherAlertRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,12 +34,13 @@ class SpaceWeatherServiceTest {
     @Mock DstIndexRecordRepository dstRepo;
     @Mock SolarWindRecordRepository solarWindRepo;
     @Mock SpaceWeatherAlertRepository alertRepo;
+    @Mock NoaaScaleRepository noaaScaleRepo;
 
     SpaceWeatherService service;
 
     @BeforeEach
     void setUp() {
-        service = new SpaceWeatherService(kpRepo, dstRepo, solarWindRepo, alertRepo);
+        service = new SpaceWeatherService(kpRepo, dstRepo, solarWindRepo, alertRepo, noaaScaleRepo);
     }
 
     // --- GNSS Quality Classification Tests ---
@@ -158,6 +161,33 @@ class SpaceWeatherServiceTest {
         assertEquals(bd("620"), response.solarWindSpeed());
         assertEquals("FLAG_DISPLACEMENT_DATA", response.recommendation());
         assertNotNull(response.assessment());
+    }
+
+    @Test
+    void assessGnssQuality_observedNoaaGScale_drivesSevere_whenKpDstCalm() {
+        // Calm Kp/Dst, no alerts — but the continuous NOAA "observed" scale reports G3.
+        KpIndexRecord kp = new KpIndexRecord();
+        kp.setTime(OffsetDateTime.now(ZoneOffset.UTC));
+        kp.setKpValue(bd("2.0"));
+        DstIndexRecord dst = new DstIndexRecord();
+        dst.setTime(OffsetDateTime.now(ZoneOffset.UTC));
+        dst.setDstValue(bd("-10"));
+
+        NoaaScale observed = new NoaaScale();
+        observed.setHorizon("observed");
+        observed.setTime(OffsetDateTime.now(ZoneOffset.UTC));
+        observed.setGScale(3);
+
+        when(kpRepo.findTopByOrderByTimeDesc()).thenReturn(Optional.of(kp));
+        when(dstRepo.findTopByOrderByTimeDesc()).thenReturn(Optional.of(dst));
+        when(solarWindRepo.findTopByOrderByTimeDesc()).thenReturn(Optional.empty());
+        when(alertRepo.findByAlertTimeAfterOrderByAlertTimeDesc(any())).thenReturn(Collections.emptyList());
+        when(noaaScaleRepo.findTopByHorizonOrderByTimeDesc("observed")).thenReturn(Optional.of(observed));
+
+        GnssQualityResponse response = service.assessGnssQuality();
+
+        assertEquals(GnssQualityLevel.SEVERE, response.qualityLevel());
+        assertEquals(3, response.gScale());
     }
 
     @Test
