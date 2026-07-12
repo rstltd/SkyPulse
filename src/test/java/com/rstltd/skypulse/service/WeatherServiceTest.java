@@ -78,8 +78,8 @@ class WeatherServiceTest {
         RainfallObservation o = new RainfallObservation();
         o.setTime(OffsetDateTime.parse(time));
         o.setStationCode(code);
-        if (precipitation != null) o.setPrecipitation(new BigDecimal(precipitation));
-        if (precip1hr != null) o.setPrecip1hr(new BigDecimal(precip1hr));
+        if (precipitation != null) o.setDailyAccumMm(new BigDecimal(precipitation));
+        if (precip1hr != null) o.setTrailing1hrMm(new BigDecimal(precip1hr));
         return o;
     }
 }

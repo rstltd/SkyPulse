@@ -1,6 +1,5 @@
 package com.rstltd.skypulse.collector.cwa;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rstltd.skypulse.collector.common.CollectorResult;
 import com.rstltd.skypulse.collector.cwa.dto.CwaRainfallResponse;
 import com.rstltd.skypulse.collector.cwa.dto.CwaRainfallResponse.*;
@@ -29,11 +28,10 @@ class CwaRainfallCollectorTest {
     @Mock StationRegistry stationRegistry;
 
     CwaRainfallCollector collector;
-    ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        collector = new CwaRainfallCollector(cwaApiClient, rainfallRepo, stationRegistry, objectMapper);
+        collector = new CwaRainfallCollector(cwaApiClient, rainfallRepo, stationRegistry);
     }
 
     @Test

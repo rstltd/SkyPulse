@@ -1,7 +1,5 @@
 package com.rstltd.skypulse.collector.cwa;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rstltd.skypulse.collector.common.CollectorBase;
 import com.rstltd.skypulse.collector.common.CollectorResult;
 import com.rstltd.skypulse.collector.cwa.dto.CwaRainfallResponse;
@@ -26,16 +24,13 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
     private final CwaApiClient cwaApiClient;
     private final RainfallObservationRepository rainfallRepo;
     private final StationRegistry stationRegistry;
-    private final ObjectMapper objectMapper;
 
     public CwaRainfallCollector(CwaApiClient cwaApiClient,
                                 RainfallObservationRepository rainfallRepo,
-                                StationRegistry stationRegistry,
-                                ObjectMapper objectMapper) {
+                                StationRegistry stationRegistry) {
         this.cwaApiClient = cwaApiClient;
         this.rainfallRepo = rainfallRepo;
         this.stationRegistry = stationRegistry;
-        this.objectMapper = objectMapper;
     }
 
     @Scheduled(cron = "${skypulse.cwa.schedule.rainfall}")
@@ -110,19 +105,15 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
         obs.setTime(TimeUtils.toUtcOffset(
                 TimeUtils.parseIsoOffset(station.ObsTime().DateTime())));
         obs.setStationCode(station.StationId());
-        obs.setPrecipitation(parsePrecip(station.RainfallElement().Now()));
-        obs.setPrecip10min(parsePrecip(station.RainfallElement().Past10Min()));
-        obs.setPrecip1hr(parsePrecip(station.RainfallElement().Past1hr()));
-        obs.setPrecip3hr(parsePrecip(station.RainfallElement().Past3hr()));
-        obs.setPrecip6hr(parsePrecip(station.RainfallElement().Past6Hr()));
-        obs.setPrecip12hr(parsePrecip(station.RainfallElement().Past12hr()));
-        obs.setPrecip24hr(parsePrecip(station.RainfallElement().Past24hr()));
+        var re = station.RainfallElement();
+        obs.setRain10minMm(parsePrecip(re.Past10Min()));
+        obs.setDailyAccumMm(parsePrecip(re.Now()));
+        obs.setTrailing1hrMm(parsePrecip(re.Past1hr()));
+        obs.setTrailing3hrMm(parsePrecip(re.Past3hr()));
+        obs.setTrailing6hrMm(parsePrecip(re.Past6Hr()));
+        obs.setTrailing12hrMm(parsePrecip(re.Past12hr()));
+        obs.setTrailing24hrMm(parsePrecip(re.Past24hr()));
         obs.setSource("CWA");
-        try {
-            obs.setRawData(objectMapper.writeValueAsString(station));
-        } catch (JsonProcessingException e) {
-            log.warn("[CWA_RAINFALL] Failed to serialize raw data for station {}", station.StationId());
-        }
         return obs;
     }
 

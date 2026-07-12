@@ -68,16 +68,14 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
         RainfallObservation r = new RainfallObservation();
         r.setTime(T1);
         r.setStationCode("C0D660");
-        r.setPrecipitation(new BigDecimal("12.50"));
+        r.setDailyAccumMm(new BigDecimal("12.50"));
         r.setSource("CWA");
-        r.setRawData("{\"hourly\":12.5}");
-
         rainfallRepo.saveAndFlush(r);
 
         List<RainfallObservation> results = rainfallRepo.findByStationCodeAndTimeBetween(
                 "C0D660", T1.minusHours(1), T1.plusHours(1));
         assertEquals(1, results.size());
-        assertEquals(new BigDecimal("12.50"), results.get(0).getPrecipitation());
+        assertEquals(new BigDecimal("12.50"), results.get(0).getDailyAccumMm());
     }
 
     @Test
@@ -86,7 +84,7 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
             RainfallObservation r = new RainfallObservation();
             r.setTime(t);
             r.setStationCode("TEST01");
-            r.setPrecipitation(new BigDecimal("5.00"));
+            r.setDailyAccumMm(new BigDecimal("5.00"));
             r.setSource("CWA");
             rainfallRepo.save(r);
         }
@@ -286,16 +284,15 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
     void jsonbRoundTrip() {
         String json = "{\"key\":\"value\",\"nested\":{\"num\":42}}";
 
-        RainfallObservation r = new RainfallObservation();
-        r.setTime(T1);
-        r.setStationCode("JSON_TEST");
-        r.setPrecipitation(BigDecimal.ZERO);
-        r.setSource("TEST");
-        r.setRawData(json);
+        WeatherObservation w = new WeatherObservation();
+        w.setTime(T1);
+        w.setStationCode("JSON_TEST");
+        w.setSource("TEST");
+        w.setRawData(json);
 
-        rainfallRepo.saveAndFlush(r);
+        weatherObsRepo.saveAndFlush(w);
 
-        var results = rainfallRepo.findByStationCodeAndTimeBetween("JSON_TEST", T1.minusHours(1), T1.plusHours(1));
+        var results = weatherObsRepo.findByStationCodeAndTimeBetween("JSON_TEST", T1.minusHours(1), T1.plusHours(1));
         assertEquals(1, results.size());
         assertEquals(json, results.get(0).getRawData());
     }
