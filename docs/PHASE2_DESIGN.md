@@ -509,5 +509,9 @@ Intensity.ShakingArea[]  ← 各縣市最大震度
 ## 10. 動工前打點結果（2026-07-12 實測，補 §9）
 
 - **§9.8 PostGIS → 已解**：`timescale/timescaledb:latest-pg16` **不含 PostGIS**；`cube`(1.5)+`earthdistance`(1.2) 可用。就近站查詢改用 **cube+earthdistance**（`CREATE EXTENSION cube, earthdistance;` + `ll_to_earth` GiST 索引 + `earth_distance`/`earth_box`），非 PostGIS geography。§3.2 的 `geom geography` DDL 須改為 earthdistance 方案（或應用層 bbox+haversine）。
-- **§9.1 水庫座標 → 阻塞確認**：WRA reservoir 資料集(GUID 2be9044c…)實測欄位無任何座標。必走替代：環境部 GISEPA_P_27（按 Dam 名 join，涵蓋率待驗）／KML centroid／人工 ~20-30 座 seed。**P2a 動工前仍須驗涵蓋率**。
-- **§9.2 SWCB AlertValue → 仍未打通**：`https://246.ardswc.gov.tw/webService/GetDebrisRainData.ashx` 直接 GET 回空（25s 無輸出）；base OpenData API 前測回 200。可能需 query 參數/特定 header/POST。**警戒燈號的資料存取是 P2a 首要待解**——動工前須先確認正確呼叫方式與 AlertValue 格式，否則座標→鄉鎮→警戒燈號這條鏈缺料。
+- **§9.1 水庫座標 → 來源已定（2026-07-12）**：我們實際追蹤 **67 座具名水庫**（16 座主要水庫有大量日資料，其餘小型含金門湖庫群）。WRA reservoir 資料集確認無座標。來源定為 **環境部 GISEPA_P_27**（data.moenv.gov.tw/dataset/detail/GISEPA_P_27），欄位含 `Dam`(水庫名)+`LONGITUTE`/`LATITUTE`(**直接 WGS84、免轉換**)+`CountyName`/`TownName`。⚠️ moenv API 需**免費註冊 api_key**（`?api_key=…`，無 key 回「api_key 不存在」）。P2a 做法：註冊 key → 抓 GISEPA_P_27 → 按 Dam 名 join 我們的 67 座 → 有涵蓋者 seed、缺者人工補（勿憑記憶編座標）。**KML centroid/人工全 seed 為備案**。
+- **§9.2 SWCB 警戒 API → 已解（2026-07-12）**：關鍵是**必須送瀏覽器 User-Agent**（預設 curl/Java UA 被擋回空）。三端點實測皆回乾淨 JSON：
+  - `WebService/GetCountyTownAlertValueList.ashx` → `[{County,Town,AlertValue}]`（鄉鎮門檻，最乾淨，P2 先做）
+  - `webService/GetDebrisRainData.ashx` → 潛勢溪流層級：`{County,Town,Vill,DebrisNO,AlertValue(mm=R70),STID1/STName1/STRT1,STID2/STName2/STRT2}`
+  - `webService/GetAlertData.ashx` → 即時黃/紅警戒（目前 `[]` 無作用中警戒）
+  **落地紅線**：`SwcbDebrisCollector` 的 HTTP client（WebClient/RestClient）**務必設 `User-Agent` header**，否則所有 SWCB 呼叫回空。
