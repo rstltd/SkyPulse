@@ -1,7 +1,6 @@
 package com.rstltd.skypulse.api.dto;
 
 import com.rstltd.skypulse.domain.alert.HazardAlert;
-import com.rstltd.skypulse.domain.hydrology.ReservoirStatus;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
 import com.rstltd.skypulse.domain.seismic.EarthquakeEvent;
 
@@ -17,7 +16,7 @@ public record DashboardResponse(
         List<EarthquakeEvent> recentEarthquakes,
         List<HazardAlert> activeAlerts,
         List<WaterLevelObservation> nearbyWaterLevels,
-        List<ReservoirStatus> reservoirs
+        List<ReservoirView> reservoirs
 ) {
     public record RainfallSummary(
             String stationCode,

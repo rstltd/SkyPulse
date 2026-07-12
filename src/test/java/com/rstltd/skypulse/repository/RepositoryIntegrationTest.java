@@ -2,6 +2,7 @@ package com.rstltd.skypulse.repository;
 
 import com.rstltd.skypulse.IntegrationTestBase;
 import com.rstltd.skypulse.domain.alert.HazardAlert;
+import com.rstltd.skypulse.domain.hydrology.Reservoir;
 import com.rstltd.skypulse.domain.hydrology.ReservoirStatus;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
 import com.rstltd.skypulse.domain.seismic.EarthquakeEvent;
@@ -38,6 +39,7 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
     @Autowired SpaceWeatherAlertRepository swAlertRepo;
     @Autowired WaterLevelObservationRepository waterLevelRepo;
     @Autowired ReservoirStatusRepository reservoirRepo;
+    @Autowired ReservoirRepository reservoirDimRepo;
     @Autowired HazardAlertRepository hazardAlertRepo;
 
     private static final OffsetDateTime T1 = OffsetDateTime.of(2024, 1, 15, 8, 0, 0, 0, ZoneOffset.UTC);
@@ -245,12 +247,12 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void saveAndFindReservoir() {
+    void saveAndFindReservoirStatus() {
         ReservoirStatus rs = new ReservoirStatus();
         rs.setTime(T1);
         rs.setReservoirId("10201");
-        rs.setReservoirName("翡翠水庫");
-        rs.setWaterLevel(new BigDecimal("165.200"));
+        rs.setWaterLevelM(new BigDecimal("165.200"));
+        rs.setEffectiveStorageM3(new BigDecimal("178430.00"));
         rs.setStoragePct(new BigDecimal("85.30"));
         rs.setSource("WRA");
 
@@ -258,7 +260,27 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
 
         var results = reservoirRepo.findByReservoirIdAndTimeBetween("10201", T1.minusHours(1), T1.plusHours(1));
         assertEquals(1, results.size());
-        assertEquals("翡翠水庫", results.get(0).getReservoirName());
+        assertEquals(0, new BigDecimal("165.200").compareTo(results.get(0).getWaterLevelM()));
+        assertEquals(0, new BigDecimal("85.30").compareTo(results.get(0).getStoragePct()));
+    }
+
+    @Test
+    void saveAndFindReservoirDimension() {
+        Reservoir dim = new Reservoir();
+        dim.setReservoirId("10201");
+        dim.setReservoirName("石門水庫");
+        dim.setFullLevelM(new BigDecimal("245.000"));
+        dim.setDesignCapacityM3(new BigDecimal("20930.00"));
+        dim.setLatitude(new BigDecimal("24.813611"));
+        dim.setLongitude(new BigDecimal("121.242222"));
+
+        reservoirDimRepo.saveAndFlush(dim);
+
+        var found = reservoirDimRepo.findById("10201");
+        assertTrue(found.isPresent());
+        assertEquals("石門水庫", found.get().getReservoirName());
+        assertEquals(0, new BigDecimal("245.000").compareTo(found.get().getFullLevelM()));
+        assertTrue(found.get().isActive());
     }
 
     @Test

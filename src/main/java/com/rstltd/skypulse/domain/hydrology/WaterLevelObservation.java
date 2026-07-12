@@ -5,8 +5,6 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -22,7 +20,7 @@ public class WaterLevelObservation {
     private OffsetDateTime time;
 
     @Id
-    @Column(name = "station_code", nullable = false, length = 30)
+    @Column(name = "station_code", nullable = false, length = 40)
     private String stationCode;
 
     @Column(name = "water_level", precision = 8, scale = 3)
@@ -30,11 +28,6 @@ public class WaterLevelObservation {
 
     @Column(length = 20)
     private String source;
-
-    @JsonIgnore
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "raw_data", columnDefinition = "jsonb")
-    private String rawData;
 
     @JsonIgnore
     @Column(name = "created_at", updatable = false, insertable = false)

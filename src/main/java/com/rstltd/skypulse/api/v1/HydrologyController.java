@@ -1,7 +1,7 @@
 package com.rstltd.skypulse.api.v1;
 
 import com.rstltd.skypulse.api.dto.ApiResponse;
-import com.rstltd.skypulse.domain.hydrology.ReservoirStatus;
+import com.rstltd.skypulse.api.dto.ReservoirView;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
 import com.rstltd.skypulse.service.HydrologyService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,7 +46,7 @@ public class HydrologyController {
 
     @Operation(summary = "Get latest reservoir status", description = "Returns current status of all monitored reservoirs, sorted north to south.")
     @GetMapping("/reservoirs")
-    public ResponseEntity<ApiResponse<List<ReservoirStatus>>> getReservoirs() {
+    public ResponseEntity<ApiResponse<List<ReservoirView>>> getReservoirs() {
         var data = hydrologyService.getLatestReservoirStatus();
         return ResponseEntity.ok()
                 .header("X-Data-Window", "25h")

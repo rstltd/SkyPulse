@@ -2,8 +2,8 @@ package com.rstltd.skypulse.service;
 
 import com.rstltd.skypulse.api.dto.DashboardResponse;
 import com.rstltd.skypulse.api.dto.GnssQualityResponse;
+import com.rstltd.skypulse.api.dto.ReservoirView;
 import com.rstltd.skypulse.domain.alert.HazardAlert;
-import com.rstltd.skypulse.domain.hydrology.ReservoirStatus;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
 import com.rstltd.skypulse.domain.seismic.EarthquakeEvent;
 import com.rstltd.skypulse.util.TimeUtils;
@@ -49,7 +49,7 @@ public class DashboardService {
 
         // Hydrology
         List<WaterLevelObservation> waterLevels = hydrologyService.getLatestWaterLevels();
-        List<ReservoirStatus> reservoirs = hydrologyService.getLatestReservoirStatus();
+        List<ReservoirView> reservoirs = hydrologyService.getLatestReservoirStatus();
 
         return new DashboardResponse(
                 siteId,

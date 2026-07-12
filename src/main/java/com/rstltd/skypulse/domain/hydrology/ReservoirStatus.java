@@ -11,8 +11,13 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
+/**
+ * Reservoir time-series measurements. Static metadata (name, full level, design
+ * capacity, coordinates) lives in the {@link Reservoir} dimension, joined on
+ * {@code reservoir_id}.
+ */
 @Entity
-@Table(name = "reservoir_statuses")
+@Table(name = "reservoir_status")
 @IdClass(ReservoirStatusId.class)
 @Getter @Setter @NoArgsConstructor
 public class ReservoirStatus {
@@ -25,28 +30,25 @@ public class ReservoirStatus {
     @Column(name = "reservoir_id", nullable = false, length = 20)
     private String reservoirId;
 
-    @Column(name = "reservoir_name", length = 50)
-    private String reservoirName;
+    @Column(name = "water_level_m", precision = 8, scale = 3)
+    private BigDecimal waterLevelM;
 
-    @Column(name = "water_level", precision = 8, scale = 3)
-    private BigDecimal waterLevel;
+    @Column(name = "effective_storage_m3", precision = 14, scale = 2)
+    private BigDecimal effectiveStorageM3;
 
-    @Column(name = "full_level", precision = 8, scale = 3)
-    private BigDecimal fullLevel;
-
-    @Column(name = "storage_pct", precision = 5, scale = 2)
+    @Column(name = "storage_pct", precision = 6, scale = 2)
     private BigDecimal storagePct;
 
-    @Column(precision = 10, scale = 2)
-    private BigDecimal inflow;
+    @Column(name = "inflow_cms", precision = 10, scale = 2)
+    private BigDecimal inflowCms;
 
-    @Column(precision = 10, scale = 2)
-    private BigDecimal outflow;
+    @Column(name = "outflow_cms", precision = 10, scale = 2)
+    private BigDecimal outflowCms;
 
-    @Column(name = "daily_rainfall", precision = 8, scale = 2)
-    private BigDecimal dailyRainfall;
+    @Column(name = "catchment_rain_mm", precision = 7, scale = 2)
+    private BigDecimal catchmentRainMm;
 
-    @Column(length = 20)
+    @Column(nullable = false, length = 20)
     private String source;
 
     @JsonIgnore

@@ -172,9 +172,6 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
         obs.setStationCode(record.stationid());
         obs.setWaterLevel(parseSafe(record.waterlevel()));
         obs.setSource("WRA");
-        try {
-            obs.setRawData(objectMapper.writeValueAsString(record));
-        } catch (JsonProcessingException ignored) {}
         return obs;
     }
 
