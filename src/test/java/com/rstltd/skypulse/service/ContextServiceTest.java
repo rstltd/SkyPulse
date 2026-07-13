@@ -170,6 +170,24 @@ class ContextServiceTest {
     }
 
     @Test
+    void getCoverage_returnsNearestStationProvenancePerDomain() {
+        when(stationRepo.findNearestWithCapability(anyDouble(), anyDouble(), eq("RAINFALL"), anyDouble()))
+                .thenReturn(Optional.of(station("C0Z100", "嘉義縣", "阿里山鄉")));
+        when(stationRepo.findNearestWithCapability(anyDouble(), anyDouble(), eq("WATER_LEVEL"), anyDouble()))
+                .thenReturn(Optional.empty());
+
+        var cov = service.getCoverage(23.5, 120.8, null, null, null);
+
+        assertNotNull(cov.rainfall());
+        assertEquals("C0Z100", cov.rainfall().stationCode());
+        assertNotNull(cov.rainfall().distanceKm(), "coverage reports the distance to the chosen station");
+        assertNull(cov.waterLevel(), "no water station in range");
+        assertEquals("阿里山鄉", cov.location().township());
+        assertTrue(cov.warnings().stream().anyMatch(w ->
+                "NO_STATION_IN_RADIUS".equals(w.code()) && "waterLevel".equals(w.domain())));
+    }
+
+    @Test
     void alertStatus_thresholds() {
         WaterLevelStation wls = new WaterLevelStation();
         wls.setAlertLevel1(new BigDecimal("84.0"));

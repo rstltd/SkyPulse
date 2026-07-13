@@ -91,6 +91,7 @@ skypulse:
     # caller omits radiusKm; quake-radius-km centres the seismic search on the query point.
     max-auto-radius-km: 50
     quake-radius-km: 100
+    max-batch-size: 50
     # Per-domain freshness SLA (seconds): data older than this is flagged stale.
     freshness:
       rainfall-seconds: 1800

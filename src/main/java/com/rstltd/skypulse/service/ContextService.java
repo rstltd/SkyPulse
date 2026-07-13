@@ -148,6 +148,42 @@ public class ContextService {
         return new ContextResponse(query, location, rainfall, seismic, gnss, waterLevel, warnings, meta);
     }
 
+    /**
+     * Transparency view: which station each coordinate-dependent domain would use, with distance,
+     * and no indicator computation.
+     */
+    public CoverageResponse getCoverage(double lat, double lon,
+                                        Double radiusKm, Double rainRadiusKm, Double waterRadiusKm) {
+        boolean autoRadius = radiusKm == null;
+        double base = autoRadius ? maxAutoRadiusKm : radiusKm;
+        double rainRadius = rainRadiusKm != null ? rainRadiusKm : base;
+        double waterRadius = waterRadiusKm != null ? waterRadiusKm : base;
+
+        List<Warning> warnings = new ArrayList<>();
+        boolean inTaiwan = GeoUtils.isInTaiwanRegion(lat, lon);
+        if (!inTaiwan) {
+            warnings.add(Warning.of("location", "OUTSIDE_COVERAGE",
+                    "Coordinate is outside the Taiwan coverage area"));
+        }
+
+        Station rainStation = nearest(CAP_RAINFALL, lat, lon, rainRadius).orElse(null);
+        Station waterStation = nearest(CAP_WATER_LEVEL, lat, lon, waterRadius).orElse(null);
+        Provenance rainProv = null;
+        if (rainStation != null) rainProv = stationProvenance(rainStation, CAP_RAINFALL, lat, lon);
+        else warnings.add(Warning.noStation("rainfall", rainRadius));
+        Provenance waterProv = null;
+        if (waterStation != null) waterProv = stationProvenance(waterStation, CAP_WATER_LEVEL, lat, lon);
+        else warnings.add(Warning.noStation("waterLevel", waterRadius));
+
+        Station locStation = rainStation != null ? rainStation : waterStation;
+        LocationInfo location = new LocationInfo(
+                locStation != null ? locStation.getCounty() : null,
+                locStation != null ? locStation.getTownship() : null,
+                inTaiwan);
+        QueryEcho query = new QueryEcho(lat, lon, radiusKm, defaultQuakeRadiusKm, autoRadius, maxAutoRadiusKm);
+        return new CoverageResponse(query, location, rainProv, waterProv, warnings);
+    }
+
     private Optional<Station> nearest(String capability, double lat, double lon, double radiusKm) {
         return stationRepo.findNearestWithCapability(lat, lon, capability, radiusKm * 1000.0);
     }
