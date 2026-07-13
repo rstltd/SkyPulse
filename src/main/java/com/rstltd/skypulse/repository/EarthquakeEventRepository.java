@@ -14,6 +14,8 @@ import java.util.Optional;
 public interface EarthquakeEventRepository extends JpaRepository<EarthquakeEvent, EarthquakeEventId> {
     Optional<EarthquakeEvent> findByEventId(String eventId);
     boolean existsByEventId(String eventId);
+    /** Most recent event by origin time — a proxy for seismic data currency. */
+    Optional<EarthquakeEvent> findFirstByOrderByTimeDesc();
     List<EarthquakeEvent> findByTimeBetween(OffsetDateTime start, OffsetDateTime end);
     Page<EarthquakeEvent> findByTimeBetween(OffsetDateTime start, OffsetDateTime end, Pageable pageable);
     List<EarthquakeEvent> findByTimeBetweenAndMagnitudeGreaterThanEqual(OffsetDateTime start, OffsetDateTime end, BigDecimal minMagnitude);
