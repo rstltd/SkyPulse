@@ -86,6 +86,19 @@ skypulse:
       reservoir-coords: "0 50 4 * * *"
   backfill:
     enabled: false
+  context:
+    # Coordinate-query API (P2b). max-auto-radius-km bounds the nearest-station search when the
+    # caller omits radiusKm; quake-radius-km centres the seismic search on the query point.
+    max-auto-radius-km: 50
+    quake-radius-km: 100
+    # Per-domain freshness SLA (seconds): data older than this is flagged stale.
+    freshness:
+      rainfall-seconds: 1800
+      water-level-seconds: 1800
+      seismic-seconds: 900
+      gnss-kp-seconds: 10800
+      gnss-dst-seconds: 7200
+      solar-wind-seconds: 1200
   collectors:
     # Eagerly load slowly-changing reference data (reservoir dimension, SWCB baselines) at
     # startup so it is available before the first scheduled run. Disabled in tests.

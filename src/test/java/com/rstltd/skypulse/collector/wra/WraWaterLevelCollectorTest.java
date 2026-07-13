@@ -39,6 +39,7 @@ class WraWaterLevelCollectorTest {
                 wraApiClient, waterLevelRepo, stationRegistry, waterLevelStationRepo, new ObjectMapper());
         ReflectionTestUtils.setField(collector, "waterLevelGuid", "test-guid");
         ReflectionTestUtils.setField(collector, "stationInfoGuid", "test-station-guid");
+        ReflectionTestUtils.setField(collector, "eagerStartupLoad", true);
     }
 
     @Test

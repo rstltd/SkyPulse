@@ -48,6 +48,9 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
     @Value("${skypulse.wra.station-info-guid}")
     private String stationInfoGuid;
 
+    @Value("${skypulse.collectors.eager-startup-load:true}")
+    private boolean eagerStartupLoad;
+
     public WraWaterLevelCollector(WraApiClient wraApiClient,
                                   WaterLevelObservationRepository waterLevelRepo,
                                   StationRegistry stationRegistry,
@@ -62,6 +65,7 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
 
     @PostConstruct
     void init() {
+        if (!eagerStartupLoad) return;
         try {
             loadStationInfo();
         } catch (Exception e) {

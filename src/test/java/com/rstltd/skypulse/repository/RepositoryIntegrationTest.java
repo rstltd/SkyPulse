@@ -15,6 +15,7 @@ import com.rstltd.skypulse.domain.spaceweather.SpaceWeatherAlert;
 import com.rstltd.skypulse.domain.station.Station;
 import com.rstltd.skypulse.domain.weather.RainfallObservation;
 import com.rstltd.skypulse.domain.weather.WeatherForecast;
+import com.rstltd.skypulse.domain.station.StationCapability;
 import com.rstltd.skypulse.domain.weather.WeatherObservation;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,7 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
     @Autowired HazardAlertRepository hazardAlertRepo;
     @Autowired DebrisStreamRepository debrisStreamRepo;
     @Autowired TownshipAlertBaselineRepository townshipAlertRepo;
+    @Autowired StationCapabilityRepository stationCapabilityRepo;
 
     private static final OffsetDateTime T1 = OffsetDateTime.of(2024, 1, 15, 8, 0, 0, 0, ZoneOffset.UTC);
     private static final OffsetDateTime T2 = OffsetDateTime.of(2024, 1, 15, 9, 0, 0, 0, ZoneOffset.UTC);
@@ -339,6 +341,42 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
         var found = townshipAlertRepo.findById(new com.rstltd.skypulse.domain.alert.TownshipAlertBaselineId("測試縣", "測試鄉"));
         assertTrue(found.isPresent());
         assertEquals(0, new BigDecimal("250.00").compareTo(found.get().getAlertValue()));
+    }
+
+    @Test
+    void findNearestWithCapability_returnsClosestActiveWithinRadius() {
+        saveRainfallStation("NEAR_TP", "台北", "25.0330", "121.5654");   // ~5.5 km from the query point
+        saveRainfallStation("FAR_ALI", "阿里山", "23.5108", "120.8052"); // ~180 km away
+        stationRepo.flush();
+        stationCapabilityRepo.flush();
+
+        // Nearest RAINFALL within 50 km of a Taipei point is NEAR_TP.
+        var nearest = stationRepo.findNearestWithCapability(25.04, 121.51, "RAINFALL", 50_000);
+        assertTrue(nearest.isPresent());
+        assertEquals("NEAR_TP", nearest.get().getStationCode());
+
+        // A 500 m radius excludes both.
+        assertTrue(stationRepo.findNearestWithCapability(25.04, 121.51, "RAINFALL", 500).isEmpty());
+
+        // No WATER_LEVEL-capable station exists.
+        assertTrue(stationRepo.findNearestWithCapability(25.04, 121.51, "WATER_LEVEL", 50_000).isEmpty());
+    }
+
+    private void saveRainfallStation(String code, String name, String lat, String lon) {
+        Station s = new Station();
+        s.setStationCode(code);
+        s.setStationName(name);
+        s.setSource("CWA");
+        s.setLatitude(new BigDecimal(lat));
+        s.setLongitude(new BigDecimal(lon));
+        s.setIsActive(true);
+        stationRepo.save(s);
+        StationCapability cap = new StationCapability();
+        cap.setStationCode(code);
+        cap.setCapability("RAINFALL");
+        cap.setDatasetId("O-A0002-001");
+        cap.setLastSeen(T1);
+        stationCapabilityRepo.save(cap);
     }
 
     @Test
