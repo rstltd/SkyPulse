@@ -99,6 +99,10 @@ skypulse:
       gnss-kp-seconds: 10800
       gnss-dst-seconds: 7200
       solar-wind-seconds: 1200
+    signal:
+      # Rainfall warning light: RED at/above the R70 baseline, YELLOW within this fraction of it,
+      # else GREEN. (SWCB's own yellow is forecast-based; this uses observed effective rainfall.)
+      yellow-fraction: 0.8
   collectors:
     # Eagerly load slowly-changing reference data (reservoir dimension, SWCB baselines) at
     # startup so it is available before the first scheduled run. Disabled in tests.

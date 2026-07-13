@@ -3,8 +3,10 @@ package com.rstltd.skypulse.service;
 import com.rstltd.skypulse.api.dto.GnssQualityLevel;
 import com.rstltd.skypulse.api.dto.GnssQualityResponse;
 import com.rstltd.skypulse.api.dto.context.ContextResponse;
+import com.rstltd.skypulse.domain.alert.TownshipAlertBaseline;
 import com.rstltd.skypulse.domain.station.Station;
 import com.rstltd.skypulse.domain.station.WaterLevelStation;
+import com.rstltd.skypulse.domain.weather.RainfallObservation;
 import com.rstltd.skypulse.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,9 +16,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,6 +37,7 @@ class ContextServiceTest {
     @Mock WaterLevelObservationRepository waterLevelRepo;
     @Mock WaterLevelStationRepository waterLevelStationRepo;
     @Mock EarthquakeEventRepository earthquakeRepo;
+    @Mock TownshipAlertBaselineRepository townshipRepo;
     @Mock SpaceWeatherService spaceWeatherService;
     @Mock SeismicService seismicService;
 
@@ -40,15 +46,18 @@ class ContextServiceTest {
     @BeforeEach
     void setUp() {
         service = new ContextService(stationRepo, capabilityRepo, rainfallRepo, waterLevelRepo,
-                waterLevelStationRepo, earthquakeRepo, spaceWeatherService, seismicService);
+                waterLevelStationRepo, earthquakeRepo, townshipRepo, spaceWeatherService, seismicService);
         ReflectionTestUtils.setField(service, "maxAutoRadiusKm", 50.0);
         ReflectionTestUtils.setField(service, "defaultQuakeRadiusKm", 100.0);
         ReflectionTestUtils.setField(service, "rainfallSla", 1800L);
         ReflectionTestUtils.setField(service, "waterLevelSla", 1800L);
         ReflectionTestUtils.setField(service, "seismicSla", 900L);
         ReflectionTestUtils.setField(service, "gnssKpSla", 10800L);
+        ReflectionTestUtils.setField(service, "yellowFraction", 0.8);
         lenient().when(spaceWeatherService.assessGnssQuality()).thenReturn(gnss());
         lenient().when(rainfallRepo.findByStationCodeAndTimeBetween(any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        lenient().when(rainfallRepo.findDailyRain(any(), any()))
                 .thenReturn(Collections.emptyList());
         lenient().when(seismicService.getNearbyEvents(anyDouble(), anyDouble(), anyDouble()))
                 .thenReturn(Collections.emptyList());
@@ -111,6 +120,45 @@ class ContextServiceTest {
         assertNotNull(r.waterLevel());
         assertTrue(r.warnings().stream().anyMatch(w ->
                 "NO_STATION_IN_RADIUS".equals(w.code()) && "rainfall".equals(w.domain())));
+    }
+
+    @Test
+    void getContext_rainfallSignal_redWhenEffectiveReachesBaseline() {
+        when(stationRepo.findNearestWithCapability(anyDouble(), anyDouble(), eq("RAINFALL"), anyDouble()))
+                .thenReturn(Optional.of(station("C0Z100", "嘉義縣", "阿里山鄉")));
+        when(stationRepo.findNearestWithCapability(anyDouble(), anyDouble(), eq("WATER_LEVEL"), anyDouble()))
+                .thenReturn(Optional.empty());
+
+        // One 10-min observation of 10 mm -> max rolling-hour intensity I = 10.
+        RainfallObservation o = new RainfallObservation();
+        o.setTime(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5));
+        o.setStationCode("C0Z100");
+        o.setRain10minMm(new BigDecimal("10"));
+        when(rainfallRepo.findByStationCodeAndTimeBetween(eq("C0Z100"), any(), any()))
+                .thenReturn(List.of(o));
+
+        // Today's Asia/Taipei daily rainfall = 300 mm -> Rt = 300 (weight 1).
+        LocalDate today = OffsetDateTime.now(ZoneOffset.UTC)
+                .atZoneSameInstant(ZoneId.of("Asia/Taipei")).toLocalDate();
+        when(rainfallRepo.findDailyRain(eq("C0Z100"), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{java.sql.Date.valueOf(today), new BigDecimal("300")}));
+
+        // Township R70 baseline = 250 -> Rt(300) >= 250 -> RED.
+        TownshipAlertBaseline tb = new TownshipAlertBaseline();
+        tb.setCounty("嘉義縣");
+        tb.setTown("阿里山鄉");
+        tb.setAlertValue(new BigDecimal("250"));
+        when(townshipRepo.findById(any())).thenReturn(Optional.of(tb));
+
+        ContextResponse r = service.getContext(23.5, 120.8, null, null, null, null, null);
+
+        var rain = r.rainfall();
+        assertNotNull(rain);
+        assertEquals(0, new BigDecimal("300.00").compareTo(rain.effectiveRainfallMm()));
+        assertEquals(0, new BigDecimal("250").compareTo(rain.alertBaseline().thresholdMm()));
+        assertEquals("RED", rain.signal());
+        assertEquals(0, new BigDecimal("3000.00").compareTo(rain.rti()), "RTI = I(10) x Rt(300)");
+        assertNotNull(rain.signalBasis());
     }
 
     @Test

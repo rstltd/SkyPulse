@@ -2,6 +2,8 @@ package com.rstltd.skypulse.service;
 
 import com.rstltd.skypulse.api.dto.GnssQualityResponse;
 import com.rstltd.skypulse.api.dto.context.*;
+import com.rstltd.skypulse.domain.alert.TownshipAlertBaseline;
+import com.rstltd.skypulse.domain.alert.TownshipAlertBaselineId;
 import com.rstltd.skypulse.domain.seismic.EarthquakeEvent;
 import com.rstltd.skypulse.domain.station.Station;
 import com.rstltd.skypulse.domain.station.StationCapability;
@@ -17,7 +19,9 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -36,6 +40,7 @@ public class ContextService {
     private static final String CAP_WATER_LEVEL = "WATER_LEVEL";
     private static final int RAINFALL_LOOKBACK_HOURS = 72;
     private static final String SEISMIC_WINDOW = "30d";
+    private static final ZoneId TAIPEI = ZoneId.of("Asia/Taipei");
 
     private final StationRepository stationRepo;
     private final StationCapabilityRepository capabilityRepo;
@@ -43,6 +48,7 @@ public class ContextService {
     private final WaterLevelObservationRepository waterLevelRepo;
     private final WaterLevelStationRepository waterLevelStationRepo;
     private final EarthquakeEventRepository earthquakeRepo;
+    private final TownshipAlertBaselineRepository townshipRepo;
     private final SpaceWeatherService spaceWeatherService;
     private final SeismicService seismicService;
 
@@ -58,6 +64,8 @@ public class ContextService {
     private long seismicSla;
     @Value("${skypulse.context.freshness.gnss-kp-seconds}")
     private long gnssKpSla;
+    @Value("${skypulse.context.signal.yellow-fraction}")
+    private double yellowFraction;
 
     public ContextService(StationRepository stationRepo,
                           StationCapabilityRepository capabilityRepo,
@@ -65,6 +73,7 @@ public class ContextService {
                           WaterLevelObservationRepository waterLevelRepo,
                           WaterLevelStationRepository waterLevelStationRepo,
                           EarthquakeEventRepository earthquakeRepo,
+                          TownshipAlertBaselineRepository townshipRepo,
                           SpaceWeatherService spaceWeatherService,
                           SeismicService seismicService) {
         this.stationRepo = stationRepo;
@@ -73,6 +82,7 @@ public class ContextService {
         this.waterLevelRepo = waterLevelRepo;
         this.waterLevelStationRepo = waterLevelStationRepo;
         this.earthquakeRepo = earthquakeRepo;
+        this.townshipRepo = townshipRepo;
         this.spaceWeatherService = spaceWeatherService;
         this.seismicService = seismicService;
     }
@@ -110,7 +120,7 @@ public class ContextService {
         RainfallContext rainfall = null;
         if (wantRain) {
             if (rainStation != null) {
-                rainfall = buildRainfall(rainStation, lat, lon, now);
+                rainfall = buildRainfall(rainStation, lat, lon, now, warnings);
             } else {
                 warnings.add(Warning.noStation("rainfall", rainRadius));
             }
@@ -143,15 +153,64 @@ public class ContextService {
     }
 
     // --- Rainfall -----------------------------------------------------------
-    private RainfallContext buildRainfall(Station s, double lat, double lon, OffsetDateTime now) {
+    private RainfallContext buildRainfall(Station s, double lat, double lon,
+                                          OffsetDateTime now, List<Warning> warnings) {
+        String code = s.getStationCode();
         List<RainfallObservation> obs = rainfallRepo.findByStationCodeAndTimeBetween(
-                s.getStationCode(), now.minusHours(RAINFALL_LOOKBACK_HOURS), now);
+                code, now.minusHours(RAINFALL_LOOKBACK_HOURS), now);
         RainfallContext.AccumulatedMm acc = RainfallAggregator.accumulate(obs, now);
         BigDecimal maxI = RainfallAggregator.maxHourlyIntensity(obs);
         Freshness fresh = Freshness.of(RainfallAggregator.latestTime(obs), now, rainfallSla);
         Provenance prov = stationProvenance(s, CAP_RAINFALL, lat, lon);
-        // effectiveRainfallMm / rti / alertBaseline / signal are filled in phase C.
-        return new RainfallContext(prov, fresh, acc, maxI, null, null, null, null, null);
+
+        // SWCB effective accumulated rainfall (Rt) over the 7-day Asia/Taipei window + RTI = I x Rt.
+        BigDecimal rt = effectiveRainfall(code, now);
+        BigDecimal rti = maxI.multiply(rt).setScale(2, RoundingMode.HALF_UP);
+
+        // Debris-flow alert baseline (R70) for the station's township -> warning signal.
+        RainfallContext.AlertBaseline baseline = null;
+        String signal = null;
+        String signalBasis = null;
+        String county = s.getCounty(), town = s.getTownship();
+        Optional<TownshipAlertBaseline> tb = (county != null && town != null)
+                ? townshipRepo.findById(new TownshipAlertBaselineId(county, town))
+                : Optional.empty();
+        if (tb.isPresent()) {
+            BigDecimal threshold = tb.get().getAlertValue();
+            baseline = new RainfallContext.AlertBaseline(town, threshold, "SWCB", "土石流警戒基準值", null);
+            signal = SwcbEffectiveRainfall.signal(rt, threshold, yellowFraction);
+            signalBasis = signalBasis(rt, threshold, signal);
+        } else {
+            warnings.add(Warning.of("rainfall", "NO_BASELINE_FOR_TOWNSHIP",
+                    "No SWCB debris-flow baseline for township " + (town != null ? town : "(unknown)")));
+        }
+
+        return new RainfallContext(prov, fresh, acc, maxI, rt, rti, baseline, signal, signalBasis);
+    }
+
+    private BigDecimal effectiveRainfall(String code, OffsetDateTime now) {
+        List<Object[]> rows = rainfallRepo.findDailyRain(code, now.minusDays(8));
+        List<SwcbEffectiveRainfall.DailyRain> days = new ArrayList<>();
+        for (Object[] row : rows) {
+            LocalDate date = ((java.sql.Date) row[0]).toLocalDate();
+            BigDecimal rain = row[1] == null ? null : new BigDecimal(row[1].toString());
+            days.add(new SwcbEffectiveRainfall.DailyRain(date, rain));
+        }
+        LocalDate today = now.atZoneSameInstant(TAIPEI).toLocalDate();
+        return SwcbEffectiveRainfall.effectiveRainfall(days, today);
+    }
+
+    private static String signalBasis(BigDecimal rt, BigDecimal r70, String signal) {
+        if (signal == null) return null;
+        int pct = rt.multiply(BigDecimal.valueOf(100))
+                .divide(r70, 0, RoundingMode.HALF_UP).intValue();
+        String label = switch (signal) {
+            case SwcbEffectiveRainfall.RED -> "紅色警戒";
+            case SwcbEffectiveRainfall.YELLOW -> "黃色警戒";
+            default -> "綠燈（正常）";
+        };
+        String rel = SwcbEffectiveRainfall.RED.equals(signal) ? "已達警戒基準值" : "未逾越";
+        return "有效累積雨量(" + rt + ") 為警戒基準值(" + r70 + ")的 " + pct + "%，" + rel + " → " + label;
     }
 
     // --- Water level --------------------------------------------------------
