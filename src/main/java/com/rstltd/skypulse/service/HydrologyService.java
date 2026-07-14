@@ -4,9 +4,11 @@ import com.rstltd.skypulse.api.dto.ReservoirView;
 import com.rstltd.skypulse.domain.hydrology.Reservoir;
 import com.rstltd.skypulse.domain.hydrology.ReservoirStatus;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
+import com.rstltd.skypulse.domain.station.WaterLevelStation;
 import com.rstltd.skypulse.repository.ReservoirRepository;
 import com.rstltd.skypulse.repository.ReservoirStatusRepository;
 import com.rstltd.skypulse.repository.WaterLevelObservationRepository;
+import com.rstltd.skypulse.repository.WaterLevelStationRepository;
 import com.rstltd.skypulse.util.TimeUtils;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +25,7 @@ public class HydrologyService {
     private final WaterLevelObservationRepository waterLevelRepo;
     private final ReservoirStatusRepository reservoirRepo;
     private final ReservoirRepository reservoirDimRepo;
+    private final WaterLevelStationRepository waterLevelStationRepo;
 
     /** Reservoir IDs ordered north to south by geographic location */
     private static final Map<String, Integer> RESERVOIR_ORDER = Map.ofEntries(
@@ -74,15 +77,22 @@ public class HydrologyService {
 
     public HydrologyService(WaterLevelObservationRepository waterLevelRepo,
                             ReservoirStatusRepository reservoirRepo,
-                            ReservoirRepository reservoirDimRepo) {
+                            ReservoirRepository reservoirDimRepo,
+                            WaterLevelStationRepository waterLevelStationRepo) {
         this.waterLevelRepo = waterLevelRepo;
         this.reservoirRepo = reservoirRepo;
         this.reservoirDimRepo = reservoirDimRepo;
+        this.waterLevelStationRepo = waterLevelStationRepo;
     }
 
     public List<WaterLevelObservation> getLatestWaterLevels() {
         OffsetDateTime now = TimeUtils.nowUtc();
         return waterLevelRepo.findByTimeBetween(now.minusHours(2), now);
+    }
+
+    /** Water-level station dimension incl. alert thresholds (moved off Station in P2a). */
+    public List<WaterLevelStation> getWaterLevelStations() {
+        return waterLevelStationRepo.findAll();
     }
 
     public List<WaterLevelObservation> getWaterLevelByStation(String stationCode, int hours) {

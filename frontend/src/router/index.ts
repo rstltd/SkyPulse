@@ -18,6 +18,11 @@ const routes = [
     component: () => import('@/views/DashboardView.vue'),
   },
   {
+    path: '/monitor',
+    name: 'ContextMonitor',
+    component: () => import('@/views/ContextMonitorView.vue'),
+  },
+  {
     path: '/weather',
     name: 'Weather',
     component: () => import('@/views/WeatherView.vue'),
