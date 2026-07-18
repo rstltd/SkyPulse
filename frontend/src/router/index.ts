@@ -23,6 +23,11 @@ const routes = [
     component: () => import('@/views/ContextMonitorView.vue'),
   },
   {
+    path: '/map',
+    name: 'Map',
+    component: () => import('@/views/MapView.vue'),
+  },
+  {
     path: '/weather',
     name: 'Weather',
     component: () => import('@/views/WeatherView.vue'),
