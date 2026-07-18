@@ -14,16 +14,22 @@ export interface Station {
   stationCode: string
   stationName: string
   source: string
-  stationType: string
   latitude: number | null
   longitude: number | null
   altitude: number | null
   county: string | null
   township: string | null
+  isActive: boolean
+}
+
+// Water-level station dimension (thresholds moved off Station in P2a).
+export interface WaterLevelStation {
+  stationCode: string
+  riverName: string | null
+  basin: string | null
   alertLevel1: number | null
   alertLevel2: number | null
   alertLevel3: number | null
-  isActive: boolean
 }
 
 export interface MonitorSummary {
@@ -150,7 +156,13 @@ export interface AccumulatedRainfallResponse {
 export interface RainfallObservation {
   time: string
   stationCode: string
-  precipitation: number
+  rain10minMm: number | null
+  dailyAccumMm: number | null
+  trailing1hrMm: number | null
+  trailing3hrMm: number | null
+  trailing6hrMm: number | null
+  trailing12hrMm: number | null
+  trailing24hrMm: number | null
   source: string
 }
 
@@ -200,15 +212,141 @@ export interface SiteInfo {
   associatedStationCode: string
 }
 
+// Joined reservoir read model (dimension + latest status) — backend ReservoirView.
 export interface ReservoirStatus {
   time: string
   reservoirId: string
-  reservoirName: string
-  waterLevel: number
-  fullLevel: number
-  storagePct: number
-  inflow: number
-  outflow: number
-  dailyRainfall: number
+  reservoirName: string | null
+  waterLevelM: number | null
+  fullLevelM: number | null
+  effectiveStorageM3: number | null
+  designCapacityM3: number | null
+  storagePct: number | null
+  inflowCms: number | null
+  outflowCms: number | null
+  catchmentRainMm: number | null
+  latitude: number | null
+  longitude: number | null
+  basin: string | null
+  county: string | null
+}
+
+// --- Coordinate-query context API (Direction B main product) ---
+export interface Provenance {
   source: string
+  dataset: string | null
+  stationCode: string | null
+  stationName: string | null
+  stationLat: number | null
+  stationLon: number | null
+  distanceKm: number | null
+}
+
+export interface Freshness {
+  observedAt: string | null
+  ageSeconds: number | null
+  stale: boolean | null
+  expectedMaxAgeSeconds: number | null
+}
+
+export interface Warning {
+  domain: string
+  code: string
+  message: string
+  searchedRadiusKm: number | null
+}
+
+export interface QueryEcho {
+  lat: number
+  lon: number
+  radiusKm: number | null
+  quakeRadiusKm: number
+  autoRadius: boolean
+  maxAutoRadiusKm: number
+}
+
+export interface LocationInfo {
+  county: string | null
+  township: string | null
+  inTaiwan: boolean
+}
+
+export interface RainfallContext {
+  provenance: Provenance
+  freshness: Freshness
+  accumulatedMm: { h3: number; h6: number; h12: number; h24: number; h48: number; h72: number }
+  maxHourlyIntensityMm: number | null
+  effectiveRainfallMm: number | null
+  rti: number | null
+  alertBaseline: {
+    township: string
+    thresholdMm: number | null
+    source: string
+    dataset: string
+    effectiveFrom: string | null
+  } | null
+  signal: 'GREEN' | 'YELLOW' | 'RED' | null
+  signalBasis: string | null
+}
+
+export interface WaterLevelContext {
+  provenance: Provenance
+  freshness: Freshness
+  waterLevelM: number | null
+  alertLevels: { level1: number | null; level2: number | null; level3: number | null } | null
+  alertStatus: 'NORMAL' | 'LEVEL1' | 'LEVEL2' | 'LEVEL3' | null
+}
+
+export interface SeismicContext {
+  strongestNearby: {
+    eventId: string
+    time: string
+    magnitude: number
+    depthKm: number | null
+    epicenterLat: number
+    epicenterLon: number
+    distanceKm: number | null
+    maxIntensity: string | null
+    locationDesc: string | null
+    source: string
+  } | null
+  nearbyCount: number
+  window: string
+  provenance: Provenance
+  freshness: Freshness
+}
+
+export interface GnssQualityContext {
+  qualityLevel: 'NORMAL' | 'CAUTION' | 'DEGRADED' | 'SEVERE'
+  kpIndex: number | null
+  dstIndex: number | null
+  bzComponent: number | null
+  solarWindSpeed: number | null
+  gScale: number | null
+  rScale: number | null
+  sScale: number | null
+  assessment: string
+  recommendation: string
+  global: boolean
+  provenance: Array<{ index: string; source: string; observedAt: string | null }>
+  freshness: Freshness
+}
+
+export interface ContextResponse {
+  query: QueryEcho
+  location: LocationInfo
+  rainfall: RainfallContext | null
+  seismic: SeismicContext | null
+  gnssQuality: GnssQualityContext
+  waterLevel: WaterLevelContext | null
+  warnings: Warning[]
+  meta: { generatedAt: string; contractVersion: string; partial: boolean }
+}
+
+export interface CoverageResponse {
+  query: QueryEcho
+  location: LocationInfo
+  rainfall: Provenance | null
+  waterLevel: Provenance | null
+  warnings: Warning[]
 }

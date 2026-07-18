@@ -100,6 +100,13 @@
             <version>2.8.6</version>
         </dependency>
 
+        <!-- Coordinate reprojection: TWD97 TM2 (EPSG:3826) -> WGS84 for WRA stations -->
+        <dependency>
+            <groupId>org.locationtech.proj4j</groupId>
+            <artifactId>proj4j</artifactId>
+            <version>1.3.0</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

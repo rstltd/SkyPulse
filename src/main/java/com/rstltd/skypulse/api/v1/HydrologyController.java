@@ -1,8 +1,9 @@
 package com.rstltd.skypulse.api.v1;
 
 import com.rstltd.skypulse.api.dto.ApiResponse;
-import com.rstltd.skypulse.domain.hydrology.ReservoirStatus;
+import com.rstltd.skypulse.api.dto.ReservoirView;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
+import com.rstltd.skypulse.domain.station.WaterLevelStation;
 import com.rstltd.skypulse.service.HydrologyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -44,9 +45,18 @@ public class HydrologyController {
         return ApiResponse.ok(hydrologyService.getWaterLevelByStation(code, hours));
     }
 
+    @Operation(summary = "Get water-level stations", description = "Station dimension incl. alert thresholds (level1/2/3) for water-level warning display.")
+    @GetMapping("/water-level/stations")
+    public ResponseEntity<ApiResponse<List<WaterLevelStation>>> getWaterLevelStations() {
+        var data = hydrologyService.getWaterLevelStations();
+        return ResponseEntity.ok()
+                .header("X-Data-Count", String.valueOf(data.size()))
+                .body(ApiResponse.ok(data));
+    }
+
     @Operation(summary = "Get latest reservoir status", description = "Returns current status of all monitored reservoirs, sorted north to south.")
     @GetMapping("/reservoirs")
-    public ResponseEntity<ApiResponse<List<ReservoirStatus>>> getReservoirs() {
+    public ResponseEntity<ApiResponse<List<ReservoirView>>> getReservoirs() {
         var data = hydrologyService.getLatestReservoirStatus();
         return ResponseEntity.ok()
                 .header("X-Data-Window", "25h")

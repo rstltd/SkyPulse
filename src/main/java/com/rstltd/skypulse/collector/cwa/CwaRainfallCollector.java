@@ -1,13 +1,11 @@
 package com.rstltd.skypulse.collector.cwa;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rstltd.skypulse.collector.common.CollectorBase;
 import com.rstltd.skypulse.collector.common.CollectorResult;
 import com.rstltd.skypulse.collector.cwa.dto.CwaRainfallResponse;
 import com.rstltd.skypulse.domain.weather.RainfallObservation;
 import com.rstltd.skypulse.repository.RainfallObservationRepository;
-import com.rstltd.skypulse.repository.StationRepository;
+import com.rstltd.skypulse.service.StationRegistry;
 import com.rstltd.skypulse.util.TimeUtils;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -25,17 +23,14 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
 
     private final CwaApiClient cwaApiClient;
     private final RainfallObservationRepository rainfallRepo;
-    private final StationRepository stationRepo;
-    private final ObjectMapper objectMapper;
+    private final StationRegistry stationRegistry;
 
     public CwaRainfallCollector(CwaApiClient cwaApiClient,
                                 RainfallObservationRepository rainfallRepo,
-                                StationRepository stationRepo,
-                                ObjectMapper objectMapper) {
+                                StationRegistry stationRegistry) {
         this.cwaApiClient = cwaApiClient;
         this.rainfallRepo = rainfallRepo;
-        this.stationRepo = stationRepo;
-        this.objectMapper = objectMapper;
+        this.stationRegistry = stationRegistry;
     }
 
     @Scheduled(cron = "${skypulse.cwa.schedule.rainfall}")
@@ -110,19 +105,15 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
         obs.setTime(TimeUtils.toUtcOffset(
                 TimeUtils.parseIsoOffset(station.ObsTime().DateTime())));
         obs.setStationCode(station.StationId());
-        obs.setPrecipitation(parsePrecip(station.RainfallElement().Now()));
-        obs.setPrecip10min(parsePrecip(station.RainfallElement().Past10Min()));
-        obs.setPrecip1hr(parsePrecip(station.RainfallElement().Past1hr()));
-        obs.setPrecip3hr(parsePrecip(station.RainfallElement().Past3hr()));
-        obs.setPrecip6hr(parsePrecip(station.RainfallElement().Past6Hr()));
-        obs.setPrecip12hr(parsePrecip(station.RainfallElement().Past12hr()));
-        obs.setPrecip24hr(parsePrecip(station.RainfallElement().Past24hr()));
+        var re = station.RainfallElement();
+        obs.setRain10minMm(parsePrecip(re.Past10Min()));
+        obs.setDailyAccumMm(parsePrecip(re.Now()));
+        obs.setTrailing1hrMm(parsePrecip(re.Past1hr()));
+        obs.setTrailing3hrMm(parsePrecip(re.Past3hr()));
+        obs.setTrailing6hrMm(parsePrecip(re.Past6Hr()));
+        obs.setTrailing12hrMm(parsePrecip(re.Past12hr()));
+        obs.setTrailing24hrMm(parsePrecip(re.Past24hr()));
         obs.setSource("CWA");
-        try {
-            obs.setRawData(objectMapper.writeValueAsString(station));
-        } catch (JsonProcessingException e) {
-            log.warn("[CWA_RAINFALL] Failed to serialize raw data for station {}", station.StationId());
-        }
         return obs;
     }
 
@@ -137,37 +128,28 @@ public class CwaRainfallCollector extends CollectorBase<CwaRainfallResponse.Stat
     }
 
     private void ensureStation(CwaRainfallResponse.Station station) {
-        if (stationRepo.existsByStationCode(station.StationId())) {
-            return;
-        }
         try {
-            var entity = new com.rstltd.skypulse.domain.station.Station();
-            entity.setStationCode(station.StationId());
-            entity.setStationName(station.StationName());
-            entity.setSource("CWA");
-            entity.setStationType("RAINFALL");
-            entity.setIsActive(true);
-
-            if (station.GeoInfo() != null) {
-                entity.setCounty(station.GeoInfo().CountyName());
-                entity.setTownship(station.GeoInfo().TownName());
-                if (station.GeoInfo().StationAltitude() != null) {
-                    entity.setAltitude(new BigDecimal(station.GeoInfo().StationAltitude()));
-                }
-                // Use WGS84 coordinates
-                if (station.GeoInfo().Coordinates() != null) {
-                    station.GeoInfo().Coordinates().stream()
+            var geo = station.GeoInfo();
+            BigDecimal lat = null, lon = null, altitude = null;
+            String county = null, township = null;
+            if (geo != null) {
+                county = geo.CountyName();
+                township = geo.TownName();
+                if (geo.StationAltitude() != null) altitude = new BigDecimal(geo.StationAltitude());
+                if (geo.Coordinates() != null) {
+                    var wgs = geo.Coordinates().stream()
                             .filter(c -> "WGS84".equals(c.CoordinateName()))
-                            .findFirst()
-                            .ifPresent(c -> {
-                                entity.setLatitude(new BigDecimal(c.StationLatitude()));
-                                entity.setLongitude(new BigDecimal(c.StationLongitude()));
-                            });
+                            .findFirst().orElse(null);
+                    if (wgs != null) {
+                        lat = new BigDecimal(wgs.StationLatitude());
+                        lon = new BigDecimal(wgs.StationLongitude());
+                    }
                 }
             }
-            stationRepo.save(entity);
+            stationRegistry.register(station.StationId(), station.StationName(), "CWA",
+                    lat, lon, altitude, county, township, "RAINFALL", "O-A0002-001");
         } catch (Exception e) {
-            log.debug("[CWA_RAINFALL] Station {} already exists or save failed: {}",
+            log.debug("[CWA_RAINFALL] Station register failed for {}: {}",
                     station.StationId(), e.getMessage());
         }
     }

@@ -95,12 +95,12 @@
                 <span class="reservoir-metric-label">水位</span>
                 <div class="reservoir-level-bar-container">
                   <div class="reservoir-bar"
-                    :style="{ width: getLevelPct(r.waterLevel, r.fullLevel) + '%' }"
+                    :style="{ width: getLevelPct(r.waterLevelM, r.fullLevelM) + '%' }"
                     :class="getReservoirClass(r.storagePct)"></div>
                 </div>
                 <span class="reservoir-metric-value">
-                  <span :class="getReservoirClass(r.storagePct)">{{ r.waterLevel ?? '-' }}</span>
-                  <span class="muted"> / {{ r.fullLevel ?? '-' }} m</span>
+                  <span :class="getReservoirClass(r.storagePct)">{{ r.waterLevelM ?? '-' }}</span>
+                  <span class="muted"> / {{ r.fullLevelM ?? '-' }} m</span>
                 </span>
               </div>
               <!-- 入流 / 出流 -->
@@ -109,7 +109,7 @@
                   <span class="reservoir-metric-label">入流</span>
                   <span class="reservoir-metric-value">
                     <span class="flow-arrow inflow">▼</span>
-                    <span :class="getFlowClass(r.inflow, r.outflow, 'in')">{{ r.inflow ?? '-' }}</span>
+                    <span :class="getFlowClass(r.inflowCms, r.outflowCms, 'in')">{{ r.inflowCms ?? '-' }}</span>
                   </span>
                 </div>
                 <div class="flow-divider"></div>
@@ -117,16 +117,16 @@
                   <span class="reservoir-metric-label">出流</span>
                   <span class="reservoir-metric-value">
                     <span class="flow-arrow outflow">▲</span>
-                    <span :class="getFlowClass(r.inflow, r.outflow, 'out')">{{ r.outflow ?? '-' }}</span>
+                    <span :class="getFlowClass(r.inflowCms, r.outflowCms, 'out')">{{ r.outflowCms ?? '-' }}</span>
                   </span>
                 </div>
               </div>
               <!-- 日雨量 -->
               <div class="reservoir-metric">
-                <span class="reservoir-metric-label">日雨量</span>
+                <span class="reservoir-metric-label">集水區雨量</span>
                 <span class="reservoir-metric-value">
-                  <span class="rain-dot" :class="getRainClass(r.dailyRainfall)"></span>
-                  <span :class="getRainClass(r.dailyRainfall)">{{ r.dailyRainfall ?? '-' }} mm</span>
+                  <span class="rain-dot" :class="getRainClass(r.catchmentRainMm)"></span>
+                  <span :class="getRainClass(r.catchmentRainMm)">{{ r.catchmentRainMm ?? '-' }} mm</span>
                 </span>
               </div>
             </div>
@@ -148,7 +148,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { getLatestWaterLevels, getWaterLevelByStation, getReservoirs } from '@/api/hydrology'
+import { getLatestWaterLevels, getWaterLevelByStation, getReservoirs, getWaterLevelStations } from '@/api/hydrology'
 import { useExport } from '@/composables/useExport'
 import { getStations } from '@/api/stations'
 import AppCard from '@/components/AppCard.vue'
@@ -156,7 +156,7 @@ import AppChart from '@/components/AppChart.vue'
 import StationSelector from '@/components/StationSelector.vue'
 import DataTable from '@/components/DataTable.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
-import type { Station } from '@/types'
+import type { Station, WaterLevelStation } from '@/types'
 
 // County ordering (same as useStationFilter)
 const COUNTY_ORDER = [
@@ -177,6 +177,9 @@ const selectedTownship = ref('')
 const selectedStation = ref('')
 const selectedHours = ref(24)
 const stationMeta = ref<Map<string, Station>>(new Map())
+// Water-level alert thresholds (level1/2/3), keyed by station code — from the WaterLevelStation
+// dimension (moved off Station in P2a).
+const wlThresholds = ref<Map<string, WaterLevelStation>>(new Map())
 // Combined station list: stations table + observation-derived codes
 const allStationItems = ref<Station[]>([])
 const loading = ref(false)
@@ -190,13 +193,16 @@ const waterCols = [
 
 const loadMeta = async () => {
   try {
-    const res = await getStations()
-    if (res.data.success) {
+    const [stationsRes, thresholdsRes] = await Promise.all([getStations(), getWaterLevelStations()])
+    if (stationsRes.data.success) {
       const map = new Map<string, Station>()
-      for (const s of res.data.data || []) {
-        map.set(s.stationCode, s)
-      }
+      for (const s of stationsRes.data.data || []) map.set(s.stationCode, s)
       stationMeta.value = map
+    }
+    if (thresholdsRes.data.success) {
+      const tmap = new Map<string, WaterLevelStation>()
+      for (const t of thresholdsRes.data.data || []) tmap.set(t.stationCode, t)
+      wlThresholds.value = tmap
     }
   } catch (e) {
     console.error('Station meta error:', e)
@@ -212,10 +218,8 @@ const buildStationItems = () => {
       stationCode: code,
       stationName: code,
       source: 'WRA',
-      stationType: 'WATER_LEVEL',
       latitude: null, longitude: null, altitude: null,
       county: null, township: null,
-      alertLevel1: null, alertLevel2: null, alertLevel3: null,
       isActive: true,
     }
   })
@@ -338,11 +342,11 @@ const alertCols = [
   { key: 'level', label: '警戒等級' },
 ]
 
-const getStationAlertLevel = (wl: number, meta: Station | undefined) => {
-  if (!meta || wl == null) return null
-  if (meta.alertLevel1 != null && wl >= meta.alertLevel1) return { level: 1, label: '一級警戒', cls: 'danger' }
-  if (meta.alertLevel2 != null && wl >= meta.alertLevel2) return { level: 2, label: '二級警戒', cls: 'orange' }
-  if (meta.alertLevel3 != null && wl >= meta.alertLevel3) return { level: 3, label: '三級警戒', cls: 'warning' }
+const getStationAlertLevel = (wl: number, t: WaterLevelStation | undefined) => {
+  if (!t || wl == null) return null
+  if (t.alertLevel1 != null && wl >= t.alertLevel1) return { level: 1, label: '一級警戒', cls: 'danger' }
+  if (t.alertLevel2 != null && wl >= t.alertLevel2) return { level: 2, label: '二級警戒', cls: 'orange' }
+  if (t.alertLevel3 != null && wl >= t.alertLevel3) return { level: 3, label: '三級警戒', cls: 'warning' }
   return null
 }
 
@@ -359,7 +363,7 @@ const alertStations = computed(() => {
   const results: Array<{ name: string; waterLevel: number; levelLabel: string; levelClass: string; sortOrder: number }> = []
   for (const [code, w] of latestByStation) {
     const meta = stationMeta.value.get(code)
-    const alert = getStationAlertLevel(w.waterLevel, meta)
+    const alert = getStationAlertLevel(w.waterLevel, wlThresholds.value.get(code))
     if (alert) {
       results.push({
         name: meta?.stationName || code,
@@ -381,24 +385,24 @@ const alertCount = computed(() => ({
 
 // Water level chart with alert markLines
 const waterLevelChartOption = computed(() => {
-  const meta = selectedStation.value ? stationMeta.value.get(selectedStation.value) : undefined
+  const t = selectedStation.value ? wlThresholds.value.get(selectedStation.value) : undefined
   const markLines: any[] = []
-  if (meta?.alertLevel3 != null) {
-    markLines.push({ yAxis: meta.alertLevel3, lineStyle: { color: '#facc15', type: 'dashed', width: 1 }, label: { formatter: `三級警戒 ${meta.alertLevel3}m`, color: '#facc15', fontSize: 10 } })
+  if (t?.alertLevel3 != null) {
+    markLines.push({ yAxis: t.alertLevel3, lineStyle: { color: '#facc15', type: 'dashed', width: 1 }, label: { formatter: `三級警戒 ${t.alertLevel3}m`, color: '#facc15', fontSize: 10 } })
   }
-  if (meta?.alertLevel2 != null) {
-    markLines.push({ yAxis: meta.alertLevel2, lineStyle: { color: '#fb923c', type: 'dashed', width: 1 }, label: { formatter: `二級警戒 ${meta.alertLevel2}m`, color: '#fb923c', fontSize: 10 } })
+  if (t?.alertLevel2 != null) {
+    markLines.push({ yAxis: t.alertLevel2, lineStyle: { color: '#fb923c', type: 'dashed', width: 1 }, label: { formatter: `二級警戒 ${t.alertLevel2}m`, color: '#fb923c', fontSize: 10 } })
   }
-  if (meta?.alertLevel1 != null) {
-    markLines.push({ yAxis: meta.alertLevel1, lineStyle: { color: '#f87171', type: 'dashed', width: 1 }, label: { formatter: `一級警戒 ${meta.alertLevel1}m`, color: '#f87171', fontSize: 10 } })
+  if (t?.alertLevel1 != null) {
+    markLines.push({ yAxis: t.alertLevel1, lineStyle: { color: '#f87171', type: 'dashed', width: 1 }, label: { formatter: `一級警戒 ${t.alertLevel1}m`, color: '#f87171', fontSize: 10 } })
   }
 
   // Calculate Y-axis range from data + alert levels
   const dataValues = stationData.value.map(d => d.waterLevel).filter((v: any) => v != null) as number[]
   const allValues = [...dataValues]
-  if (meta?.alertLevel1 != null) allValues.push(meta.alertLevel1)
-  if (meta?.alertLevel2 != null) allValues.push(meta.alertLevel2)
-  if (meta?.alertLevel3 != null) allValues.push(meta.alertLevel3)
+  if (t?.alertLevel1 != null) allValues.push(t.alertLevel1)
+  if (t?.alertLevel2 != null) allValues.push(t.alertLevel2)
+  if (t?.alertLevel3 != null) allValues.push(t.alertLevel3)
 
   let yMin: number | undefined
   let yMax: number | undefined

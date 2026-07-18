@@ -9,6 +9,8 @@ public class SpaForwardingController {
     @RequestMapping({
             "/login",
             "/dashboard",
+            "/monitor",
+            "/map",
             "/weather",
             "/seismic",
             "/hydrology",

@@ -1,7 +1,10 @@
 package com.rstltd.skypulse.repository;
 
 import com.rstltd.skypulse.IntegrationTestBase;
+import com.rstltd.skypulse.domain.alert.DebrisStream;
 import com.rstltd.skypulse.domain.alert.HazardAlert;
+import com.rstltd.skypulse.domain.alert.TownshipAlertBaseline;
+import com.rstltd.skypulse.domain.hydrology.Reservoir;
 import com.rstltd.skypulse.domain.hydrology.ReservoirStatus;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
 import com.rstltd.skypulse.domain.seismic.EarthquakeEvent;
@@ -12,6 +15,7 @@ import com.rstltd.skypulse.domain.spaceweather.SpaceWeatherAlert;
 import com.rstltd.skypulse.domain.station.Station;
 import com.rstltd.skypulse.domain.weather.RainfallObservation;
 import com.rstltd.skypulse.domain.weather.WeatherForecast;
+import com.rstltd.skypulse.domain.station.StationCapability;
 import com.rstltd.skypulse.domain.weather.WeatherObservation;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,7 +42,11 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
     @Autowired SpaceWeatherAlertRepository swAlertRepo;
     @Autowired WaterLevelObservationRepository waterLevelRepo;
     @Autowired ReservoirStatusRepository reservoirRepo;
+    @Autowired ReservoirRepository reservoirDimRepo;
     @Autowired HazardAlertRepository hazardAlertRepo;
+    @Autowired DebrisStreamRepository debrisStreamRepo;
+    @Autowired TownshipAlertBaselineRepository townshipAlertRepo;
+    @Autowired StationCapabilityRepository stationCapabilityRepo;
 
     private static final OffsetDateTime T1 = OffsetDateTime.of(2024, 1, 15, 8, 0, 0, 0, ZoneOffset.UTC);
     private static final OffsetDateTime T2 = OffsetDateTime.of(2024, 1, 15, 9, 0, 0, 0, ZoneOffset.UTC);
@@ -50,13 +58,12 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
         s.setStationCode("C0D660");
         s.setStationName("日月潭");
         s.setSource("CWA");
-        s.setStationType("RAINFALL");
         s.setLatitude(new BigDecimal("23.881200"));
         s.setLongitude(new BigDecimal("120.908100"));
         s.setIsActive(true);
 
         Station saved = stationRepo.saveAndFlush(s);
-        assertNotNull(saved.getId());
+        assertEquals("C0D660", saved.getStationCode());
 
         assertTrue(stationRepo.existsByStationCode("C0D660"));
         var found = stationRepo.findByStationCode("C0D660");
@@ -69,16 +76,14 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
         RainfallObservation r = new RainfallObservation();
         r.setTime(T1);
         r.setStationCode("C0D660");
-        r.setPrecipitation(new BigDecimal("12.50"));
+        r.setDailyAccumMm(new BigDecimal("12.50"));
         r.setSource("CWA");
-        r.setRawData("{\"hourly\":12.5}");
-
         rainfallRepo.saveAndFlush(r);
 
         List<RainfallObservation> results = rainfallRepo.findByStationCodeAndTimeBetween(
                 "C0D660", T1.minusHours(1), T1.plusHours(1));
         assertEquals(1, results.size());
-        assertEquals(new BigDecimal("12.50"), results.get(0).getPrecipitation());
+        assertEquals(new BigDecimal("12.50"), results.get(0).getDailyAccumMm());
     }
 
     @Test
@@ -87,7 +92,7 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
             RainfallObservation r = new RainfallObservation();
             r.setTime(t);
             r.setStationCode("TEST01");
-            r.setPrecipitation(new BigDecimal("5.00"));
+            r.setDailyAccumMm(new BigDecimal("5.00"));
             r.setSource("CWA");
             rainfallRepo.save(r);
         }
@@ -248,12 +253,12 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void saveAndFindReservoir() {
+    void saveAndFindReservoirStatus() {
         ReservoirStatus rs = new ReservoirStatus();
         rs.setTime(T1);
         rs.setReservoirId("10201");
-        rs.setReservoirName("翡翠水庫");
-        rs.setWaterLevel(new BigDecimal("165.200"));
+        rs.setWaterLevelM(new BigDecimal("165.200"));
+        rs.setEffectiveStorageM3(new BigDecimal("178430.00"));
         rs.setStoragePct(new BigDecimal("85.30"));
         rs.setSource("WRA");
 
@@ -261,7 +266,27 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
 
         var results = reservoirRepo.findByReservoirIdAndTimeBetween("10201", T1.minusHours(1), T1.plusHours(1));
         assertEquals(1, results.size());
-        assertEquals("翡翠水庫", results.get(0).getReservoirName());
+        assertEquals(0, new BigDecimal("165.200").compareTo(results.get(0).getWaterLevelM()));
+        assertEquals(0, new BigDecimal("85.30").compareTo(results.get(0).getStoragePct()));
+    }
+
+    @Test
+    void saveAndFindReservoirDimension() {
+        Reservoir dim = new Reservoir();
+        dim.setReservoirId("10201");
+        dim.setReservoirName("石門水庫");
+        dim.setFullLevelM(new BigDecimal("245.000"));
+        dim.setDesignCapacityM3(new BigDecimal("20930.00"));
+        dim.setLatitude(new BigDecimal("24.813611"));
+        dim.setLongitude(new BigDecimal("121.242222"));
+
+        reservoirDimRepo.saveAndFlush(dim);
+
+        var found = reservoirDimRepo.findById("10201");
+        assertTrue(found.isPresent());
+        assertEquals("石門水庫", found.get().getReservoirName());
+        assertEquals(0, new BigDecimal("245.000").compareTo(found.get().getFullLevelM()));
+        assertTrue(found.get().isActive());
     }
 
     @Test
@@ -284,19 +309,89 @@ class RepositoryIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void saveAndFindDebrisStream() {
+        // Synthetic county/town so the query does not collide with real SWCB reference data.
+        DebrisStream d = new DebrisStream();
+        d.setDebrisNo("測試DF001");
+        d.setCounty("測試縣");
+        d.setTown("測試鄉");
+        d.setVillage("測試村");
+        d.setAlertValue(new BigDecimal("350.00"));
+        d.setRefStation1("C0U890");
+        d.setRefRatio1(new BigDecimal("0.700"));
+        d.setRefStation2("C0U900");
+        d.setRefRatio2(new BigDecimal("0.300"));
+
+        debrisStreamRepo.saveAndFlush(d);
+
+        var byTown = debrisStreamRepo.findByCountyAndTown("測試縣", "測試鄉");
+        assertEquals(1, byTown.size());
+        assertEquals(0, new BigDecimal("350.00").compareTo(byTown.get(0).getAlertValue()));
+    }
+
+    @Test
+    void saveAndFindTownshipAlertBaseline() {
+        TownshipAlertBaseline t = new TownshipAlertBaseline();
+        t.setCounty("測試縣");
+        t.setTown("測試鄉");
+        t.setAlertValue(new BigDecimal("250.00"));
+
+        townshipAlertRepo.saveAndFlush(t);
+
+        var found = townshipAlertRepo.findById(new com.rstltd.skypulse.domain.alert.TownshipAlertBaselineId("測試縣", "測試鄉"));
+        assertTrue(found.isPresent());
+        assertEquals(0, new BigDecimal("250.00").compareTo(found.get().getAlertValue()));
+    }
+
+    @Test
+    void findNearestWithCapability_returnsClosestActiveWithinRadius() {
+        saveRainfallStation("NEAR_TP", "台北", "25.0330", "121.5654");   // ~5.5 km from the query point
+        saveRainfallStation("FAR_ALI", "阿里山", "23.5108", "120.8052"); // ~180 km away
+        stationRepo.flush();
+        stationCapabilityRepo.flush();
+
+        // Nearest RAINFALL within 50 km of a Taipei point is NEAR_TP.
+        var nearest = stationRepo.findNearestWithCapability(25.04, 121.51, "RAINFALL", 50_000);
+        assertTrue(nearest.isPresent());
+        assertEquals("NEAR_TP", nearest.get().getStationCode());
+
+        // A 500 m radius excludes both.
+        assertTrue(stationRepo.findNearestWithCapability(25.04, 121.51, "RAINFALL", 500).isEmpty());
+
+        // No WATER_LEVEL-capable station exists.
+        assertTrue(stationRepo.findNearestWithCapability(25.04, 121.51, "WATER_LEVEL", 50_000).isEmpty());
+    }
+
+    private void saveRainfallStation(String code, String name, String lat, String lon) {
+        Station s = new Station();
+        s.setStationCode(code);
+        s.setStationName(name);
+        s.setSource("CWA");
+        s.setLatitude(new BigDecimal(lat));
+        s.setLongitude(new BigDecimal(lon));
+        s.setIsActive(true);
+        stationRepo.save(s);
+        StationCapability cap = new StationCapability();
+        cap.setStationCode(code);
+        cap.setCapability("RAINFALL");
+        cap.setDatasetId("O-A0002-001");
+        cap.setLastSeen(T1);
+        stationCapabilityRepo.save(cap);
+    }
+
+    @Test
     void jsonbRoundTrip() {
         String json = "{\"key\":\"value\",\"nested\":{\"num\":42}}";
 
-        RainfallObservation r = new RainfallObservation();
-        r.setTime(T1);
-        r.setStationCode("JSON_TEST");
-        r.setPrecipitation(BigDecimal.ZERO);
-        r.setSource("TEST");
-        r.setRawData(json);
+        WeatherObservation w = new WeatherObservation();
+        w.setTime(T1);
+        w.setStationCode("JSON_TEST");
+        w.setSource("TEST");
+        w.setRawData(json);
 
-        rainfallRepo.saveAndFlush(r);
+        weatherObsRepo.saveAndFlush(w);
 
-        var results = rainfallRepo.findByStationCodeAndTimeBetween("JSON_TEST", T1.minusHours(1), T1.plusHours(1));
+        var results = weatherObsRepo.findByStationCodeAndTimeBetween("JSON_TEST", T1.minusHours(1), T1.plusHours(1));
         assertEquals(1, results.size());
         assertEquals(json, results.get(0).getRawData());
     }

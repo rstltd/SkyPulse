@@ -1,12 +1,14 @@
 package com.rstltd.skypulse.domain.weather;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
+import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -22,37 +24,35 @@ public class RainfallObservation {
     private OffsetDateTime time;
 
     @Id
-    @Column(name = "station_code", nullable = false, length = 30)
+    @Column(name = "station_code", nullable = false, length = 40)
     private String stationCode;
 
-    @Column(precision = 8, scale = 2)
-    private BigDecimal precipitation;
+    /** Past 10 minutes (non-overlapping) — the accumulation base; SUM for rolling windows. */
+    @Column(name = "rain_10min_mm", precision = 6, scale = 2)
+    private BigDecimal rain10minMm;
 
-    @Column(name = "precip_10min", precision = 8, scale = 2)
-    private BigDecimal precip10min;
+    /** CWA "Now": daily cumulative (resets at local midnight). Must never be summed across rows. */
+    @Column(name = "daily_accum_mm", precision = 7, scale = 2)
+    private BigDecimal dailyAccumMm;
 
-    @Column(name = "precip_1hr", precision = 8, scale = 2)
-    private BigDecimal precip1hr;
+    // CWA trailing-window snapshots — kept for cross-check / fallback, never summed across rows.
+    @Column(name = "trailing_1hr_mm", precision = 6, scale = 2)
+    private BigDecimal trailing1hrMm;
 
-    @Column(name = "precip_3hr", precision = 8, scale = 2)
-    private BigDecimal precip3hr;
+    @Column(name = "trailing_3hr_mm", precision = 6, scale = 2)
+    private BigDecimal trailing3hrMm;
 
-    @Column(name = "precip_6hr", precision = 8, scale = 2)
-    private BigDecimal precip6hr;
+    @Column(name = "trailing_6hr_mm", precision = 6, scale = 2)
+    private BigDecimal trailing6hrMm;
 
-    @Column(name = "precip_12hr", precision = 8, scale = 2)
-    private BigDecimal precip12hr;
+    @Column(name = "trailing_12hr_mm", precision = 7, scale = 2)
+    private BigDecimal trailing12hrMm;
 
-    @Column(name = "precip_24hr", precision = 8, scale = 2)
-    private BigDecimal precip24hr;
+    @Column(name = "trailing_24hr_mm", precision = 7, scale = 2)
+    private BigDecimal trailing24hrMm;
 
     @Column(nullable = false, length = 20)
     private String source;
-
-    @JsonIgnore
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "raw_data", columnDefinition = "jsonb")
-    private String rawData;
 
     @JsonIgnore
     @Column(name = "created_at", updatable = false, insertable = false)

@@ -2,7 +2,9 @@ package com.rstltd.skypulse.collector.wra;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rstltd.skypulse.collector.common.CollectorResult;
+import com.rstltd.skypulse.domain.hydrology.Reservoir;
 import com.rstltd.skypulse.domain.hydrology.ReservoirStatus;
+import com.rstltd.skypulse.repository.ReservoirRepository;
 import com.rstltd.skypulse.repository.ReservoirStatusRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,7 @@ class WraReservoirCollectorTest {
 
     @Mock WraApiClient wraApiClient;
     @Mock ReservoirStatusRepository reservoirRepo;
+    @Mock ReservoirRepository reservoirDimRepo;
 
     WraReservoirCollector collector;
 
@@ -41,7 +44,7 @@ class WraReservoirCollectorTest {
 
     @BeforeEach
     void setUp() {
-        collector = new WraReservoirCollector(wraApiClient, reservoirRepo, new ObjectMapper());
+        collector = new WraReservoirCollector(wraApiClient, reservoirRepo, reservoirDimRepo, new ObjectMapper());
         ReflectionTestUtils.setField(collector, "reservoirGuid", REALTIME_GUID);
         ReflectionTestUtils.setField(collector, "reservoirDailyGuid", DAILY_GUID);
     }
@@ -83,10 +86,17 @@ class WraReservoirCollectorTest {
         verify(reservoirRepo).saveAll(captor.capture());
         ReservoirStatus saved = captor.getValue().get(0);
 
-        assertEquals("石門水庫", saved.getReservoirName());
-        assertEquals(new BigDecimal("245.000"), saved.getFullLevel());
+        assertEquals(0, new BigDecimal("10465.00").compareTo(saved.getEffectiveStorageM3()));
         // storagePct = 10465.00 / 20930.00 * 100 = 50.00
         assertEquals(0, new BigDecimal("50.00").compareTo(saved.getStoragePct()));
+
+        // Static name / full level are persisted to the reservoirs dimension, not the status row.
+        ArgumentCaptor<Reservoir> dimCaptor = ArgumentCaptor.forClass(Reservoir.class);
+        verify(reservoirDimRepo, atLeastOnce()).save(dimCaptor.capture());
+        Reservoir dim = dimCaptor.getAllValues().stream()
+                .filter(d -> "50213".equals(d.getReservoirId())).findFirst().orElseThrow();
+        assertEquals("石門水庫", dim.getReservoirName());
+        assertEquals(0, new BigDecimal("245.000").compareTo(dim.getFullLevelM()));
     }
 
     @Test
@@ -111,7 +121,6 @@ class WraReservoirCollectorTest {
         verify(reservoirRepo).saveAll(captor.capture());
         ReservoirStatus saved = captor.getValue().get(0);
 
-        assertEquals("石門水庫", saved.getReservoirName());
         assertNull(saved.getStoragePct(), "storagePct should be null when storage capacity is empty");
     }
 
@@ -183,7 +192,6 @@ class WraReservoirCollectorTest {
         verify(reservoirRepo).saveAll(captor.capture());
         ReservoirStatus saved = captor.getValue().get(0);
 
-        assertEquals("測試水庫", saved.getReservoirName());
         assertNull(saved.getStoragePct(), "storagePct should be null when capacity is zero");
     }
 }

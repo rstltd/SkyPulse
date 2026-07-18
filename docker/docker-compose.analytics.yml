@@ -1,0 +1,28 @@
+# Analytics sidecar overlay — layer on top of the base/prod compose:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.pi.yml -f docker-compose.analytics.yml up -d
+# Read-only companion to skypulse-app; owns no writes and no migrations.
+services:
+  analytics:
+    build:
+      context: ../analytics
+      dockerfile: Dockerfile
+    container_name: skypulse-analytics
+    restart: unless-stopped
+    environment:
+      PGHOST: ${ANALYTICS_PGHOST:-postgres}   # docker-network DNS of skypulse-db
+      PGPORT: "5432"
+      PGDATABASE: skypulse
+      PGUSER: skypulse
+      PGPASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      LAKE_DIR: /data/lake
+      MATERIALIZE_INTERVAL_SECONDS: ${ANALYTICS_MATERIALIZE_INTERVAL:-3600}
+    ports:
+      - "8000:8000"
+    volumes:
+      - analytics-lake:/data/lake
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  analytics-lake:

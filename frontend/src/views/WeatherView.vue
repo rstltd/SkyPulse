@@ -192,10 +192,10 @@ const loading = ref(false)
 const rainfallCols = [
   { key: 'time', label: 'Time' },
   { key: 'stationCode', label: 'Station' },
-  { key: 'precip1hr', label: '1hr (mm)' },
-  { key: 'precip3hr', label: '3hr (mm)' },
-  { key: 'precip24hr', label: '24hr (mm)' },
-  { key: 'precipitation', label: 'Daily Acc.' },
+  { key: 'trailing1hrMm', label: '1hr (mm)' },
+  { key: 'trailing3hrMm', label: '3hr (mm)' },
+  { key: 'trailing24hrMm', label: '24hr (mm)' },
+  { key: 'dailyAccumMm', label: 'Daily Acc.' },
 ]
 
 const fetchData = async () => {
@@ -284,7 +284,7 @@ const hourlyChartOption = computed(() => ({
   series: [{
     type: 'bar',
     name: '1hr Rainfall',
-    data: rainfallData.value.map(d => [d.time, d.precip1hr ?? 0]),
+    data: rainfallData.value.map(d => [d.time, d.trailing1hrMm ?? 0]),
     itemStyle: { color: '#38bdf8' },
   }],
   dataZoom: [{ type: 'slider', bottom: 5 }, { type: 'inside' }],
@@ -314,7 +314,7 @@ const dailyAccChartOption = computed(() => ({
     {
       type: 'line',
       name: 'Daily Acc.',
-      data: rainfallData.value.map(d => [d.time, d.precipitation]),
+      data: rainfallData.value.map(d => [d.time, d.dailyAccumMm]),
       smooth: true,
       lineStyle: { color: '#38bdf8', width: 2 },
       itemStyle: { color: '#38bdf8' },
@@ -324,7 +324,7 @@ const dailyAccChartOption = computed(() => ({
     {
       type: 'line',
       name: '3hr',
-      data: rainfallData.value.map(d => [d.time, d.precip3hr ?? 0]),
+      data: rainfallData.value.map(d => [d.time, d.trailing3hrMm ?? 0]),
       smooth: true,
       lineStyle: { color: '#4ade80', width: 2 },
       itemStyle: { color: '#4ade80' },
@@ -333,7 +333,7 @@ const dailyAccChartOption = computed(() => ({
     {
       type: 'line',
       name: '24hr',
-      data: rainfallData.value.map(d => [d.time, d.precip24hr ?? 0]),
+      data: rainfallData.value.map(d => [d.time, d.trailing24hrMm ?? 0]),
       smooth: true,
       lineStyle: { color: '#fb923c', width: 2 },
       itemStyle: { color: '#fb923c' },

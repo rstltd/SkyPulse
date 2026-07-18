@@ -13,7 +13,7 @@ public interface ReservoirStatusRepository extends JpaRepository<ReservoirStatus
     List<ReservoirStatus> findByReservoirIdAndTimeBetween(String reservoirId, OffsetDateTime start, OffsetDateTime end);
     List<ReservoirStatus> findByTimeBetween(OffsetDateTime start, OffsetDateTime end);
 
-    @Query(value = "SELECT DISTINCT ON (reservoir_id) * FROM reservoir_statuses " +
+    @Query(value = "SELECT DISTINCT ON (reservoir_id) * FROM reservoir_status " +
             "WHERE time BETWEEN :start AND :end " +
             "ORDER BY reservoir_id, time DESC",
             nativeQuery = true)

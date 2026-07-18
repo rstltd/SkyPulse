@@ -7,9 +7,11 @@ import com.rstltd.skypulse.collector.common.CollectorResult;
 import com.rstltd.skypulse.collector.wra.dto.WraStationInfoRecord;
 import com.rstltd.skypulse.collector.wra.dto.WraWaterLevelRecord;
 import com.rstltd.skypulse.domain.hydrology.WaterLevelObservation;
-import com.rstltd.skypulse.domain.station.Station;
-import com.rstltd.skypulse.repository.StationRepository;
+import com.rstltd.skypulse.domain.station.WaterLevelStation;
 import com.rstltd.skypulse.repository.WaterLevelObservationRepository;
+import com.rstltd.skypulse.repository.WaterLevelStationRepository;
+import com.rstltd.skypulse.service.StationRegistry;
+import com.rstltd.skypulse.util.CoordinateConverter;
 import com.rstltd.skypulse.util.TimeUtils;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,7 +33,8 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
 
     private final WraApiClient wraApiClient;
     private final WaterLevelObservationRepository waterLevelRepo;
-    private final StationRepository stationRepo;
+    private final StationRegistry stationRegistry;
+    private final WaterLevelStationRepository waterLevelStationRepo;
     private final ObjectMapper objectMapper;
 
     private static final Pattern COUNTY_PATTERN =
@@ -45,18 +48,24 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
     @Value("${skypulse.wra.station-info-guid}")
     private String stationInfoGuid;
 
+    @Value("${skypulse.collectors.eager-startup-load:true}")
+    private boolean eagerStartupLoad;
+
     public WraWaterLevelCollector(WraApiClient wraApiClient,
                                   WaterLevelObservationRepository waterLevelRepo,
-                                  StationRepository stationRepo,
+                                  StationRegistry stationRegistry,
+                                  WaterLevelStationRepository waterLevelStationRepo,
                                   ObjectMapper objectMapper) {
         this.wraApiClient = wraApiClient;
         this.waterLevelRepo = waterLevelRepo;
-        this.stationRepo = stationRepo;
+        this.stationRegistry = stationRegistry;
+        this.waterLevelStationRepo = waterLevelStationRepo;
         this.objectMapper = objectMapper;
     }
 
     @PostConstruct
     void init() {
+        if (!eagerStartupLoad) return;
         try {
             loadStationInfo();
         } catch (Exception e) {
@@ -126,51 +135,46 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
                 objectMapper.getTypeFactory().constructCollectionType(
                         List.class, WraStationInfoRecord.class));
 
-        int registered = 0;
-        int updated = 0;
+        int count = 0;
         for (WraStationInfoRecord r : records) {
             if (r.basinidentifier() == null || r.basinidentifier().isBlank()) continue;
             if (!"現存".equals(r.observationstatus())) continue;
 
             try {
-                var existing = stationRepo.findByStationCode(r.basinidentifier());
-                if (existing.isPresent()) {
-                    // Update alert levels and normalize location for existing stations
-                    Station station = existing.get();
-                    station.setAlertLevel1(parseSafe(r.alertlevel1()));
-                    station.setAlertLevel2(parseSafe(r.alertlevel2()));
-                    station.setAlertLevel3(parseSafe(r.alertlevel3()));
-                    if (r.locationaddress() != null) {
-                        station.setCounty(parseCounty(r.locationaddress()));
-                        station.setTownship(parseTownship(r.locationaddress()));
-                    }
-                    stationRepo.save(station);
-                    updated++;
-                } else {
-                    Station station = new Station();
-                    station.setStationCode(r.basinidentifier());
-                    station.setStationName(r.observatoryname() != null ? r.observatoryname() : r.basinidentifier());
-                    station.setSource("WRA");
-                    station.setStationType("WATER_LEVEL");
-                    station.setIsActive(true);
-                    station.setAlertLevel1(parseSafe(r.alertlevel1()));
-                    station.setAlertLevel2(parseSafe(r.alertlevel2()));
-                    station.setAlertLevel3(parseSafe(r.alertlevel3()));
-
-                    if (r.locationaddress() != null) {
-                        station.setCounty(parseCounty(r.locationaddress()));
-                        station.setTownship(parseTownship(r.locationaddress()));
-                    }
-
-                    stationRepo.save(station);
-                    registered++;
+                final String code = r.basinidentifier();
+                String county = null, township = null;
+                if (r.locationaddress() != null) {
+                    county = parseCounty(r.locationaddress());
+                    township = parseTownship(r.locationaddress());
                 }
+                // WRA reports TWD97 TM2 easting/northing; reproject to WGS84 for coordinate queries.
+                BigDecimal lat = null, lon = null;
+                var ll = CoordinateConverter.fromTwd97Xy(r.locationbytwd97_xy());
+                if (ll != null) {
+                    lat = BigDecimal.valueOf(ll.lat());
+                    lon = BigDecimal.valueOf(ll.lon());
+                }
+                stationRegistry.register(code,
+                        r.observatoryname() != null ? r.observatoryname() : code, "WRA",
+                        lat, lon, null, county, township, "WATER_LEVEL", stationInfoGuid);
+
+                WaterLevelStation wls = waterLevelStationRepo.findById(code).orElseGet(() -> {
+                    WaterLevelStation w = new WaterLevelStation();
+                    w.setStationCode(code);
+                    return w;
+                });
+                wls.setRiverName(r.rivername());
+                wls.setAlertLevel1(parseSafe(r.alertlevel1()));
+                wls.setAlertLevel2(parseSafe(r.alertlevel2()));
+                wls.setAlertLevel3(parseSafe(r.alertlevel3()));
+                waterLevelStationRepo.save(wls);
+                count++;
             } catch (Exception e) {
                 log.debug("[WRA_WATER_LEVEL] Failed to process station {}: {}",
                         r.basinidentifier(), e.getMessage());
             }
         }
-        log.info("[WRA_WATER_LEVEL] Stations: {} new, {} updated alert levels", registered, updated);
+        log.info("[WRA_WATER_LEVEL] Registered/updated {} water-level stations", count);
     }
 
     private WaterLevelObservation mapToEntity(WraWaterLevelRecord record) {
@@ -179,9 +183,6 @@ public class WraWaterLevelCollector extends CollectorBase<WraWaterLevelRecord> {
         obs.setStationCode(record.stationid());
         obs.setWaterLevel(parseSafe(record.waterlevel()));
         obs.setSource("WRA");
-        try {
-            obs.setRawData(objectMapper.writeValueAsString(record));
-        } catch (JsonProcessingException ignored) {}
         return obs;
     }
 

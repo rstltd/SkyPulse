@@ -4,10 +4,12 @@ import com.rstltd.skypulse.api.dto.GnssQualityLevel;
 import com.rstltd.skypulse.api.dto.GnssQualityResponse;
 import com.rstltd.skypulse.domain.spaceweather.DstIndexRecord;
 import com.rstltd.skypulse.domain.spaceweather.KpIndexRecord;
+import com.rstltd.skypulse.domain.spaceweather.NoaaScale;
 import com.rstltd.skypulse.domain.spaceweather.SolarWindRecord;
 import com.rstltd.skypulse.domain.spaceweather.SpaceWeatherAlert;
 import com.rstltd.skypulse.repository.DstIndexRecordRepository;
 import com.rstltd.skypulse.repository.KpIndexRecordRepository;
+import com.rstltd.skypulse.repository.NoaaScaleRepository;
 import com.rstltd.skypulse.repository.SolarWindRecordRepository;
 import com.rstltd.skypulse.repository.SpaceWeatherAlertRepository;
 import com.rstltd.skypulse.util.TimeUtils;
@@ -23,19 +25,24 @@ import java.util.Optional;
 @Service
 public class SpaceWeatherService {
 
+    private static final String OBSERVED_HORIZON = "observed";
+
     private final KpIndexRecordRepository kpRepo;
     private final DstIndexRecordRepository dstRepo;
     private final SolarWindRecordRepository solarWindRepo;
     private final SpaceWeatherAlertRepository alertRepo;
+    private final NoaaScaleRepository noaaScaleRepo;
 
     public SpaceWeatherService(KpIndexRecordRepository kpRepo,
                                DstIndexRecordRepository dstRepo,
                                SolarWindRecordRepository solarWindRepo,
-                               SpaceWeatherAlertRepository alertRepo) {
+                               SpaceWeatherAlertRepository alertRepo,
+                               NoaaScaleRepository noaaScaleRepo) {
         this.kpRepo = kpRepo;
         this.dstRepo = dstRepo;
         this.solarWindRepo = solarWindRepo;
         this.alertRepo = alertRepo;
+        this.noaaScaleRepo = noaaScaleRepo;
     }
 
     public Optional<KpIndexRecord> getCurrentKp() {
@@ -176,27 +183,41 @@ public class SpaceWeatherService {
         return sb.toString();
     }
 
+    // G/R/S come from two sources: discrete SWPC alerts (episodic) and the continuously-sampled
+    // NOAA scales product (the observed horizon). Take the stronger of the two.
+
+    private Optional<NoaaScale> latestObservedScale() {
+        return noaaScaleRepo.findTopByHorizonOrderByTimeDesc(OBSERVED_HORIZON);
+    }
+
     private Integer getMaxGScale() {
-        return getRecentAlerts().stream()
+        Integer fromAlerts = getRecentAlerts().stream()
                 .map(SpaceWeatherAlert::getGScale)
                 .filter(g -> g != null)
-                .max(Integer::compareTo)
-                .orElse(null);
+                .max(Integer::compareTo).orElse(null);
+        return maxNullable(fromAlerts, latestObservedScale().map(NoaaScale::getGScale).orElse(null));
     }
 
     private Integer getMaxRScale() {
-        return getRecentAlerts().stream()
+        Integer fromAlerts = getRecentAlerts().stream()
                 .map(SpaceWeatherAlert::getRScale)
                 .filter(r -> r != null)
-                .max(Integer::compareTo)
-                .orElse(null);
+                .max(Integer::compareTo).orElse(null);
+        return maxNullable(fromAlerts, latestObservedScale().map(NoaaScale::getRScale).orElse(null));
     }
 
     private Integer getMaxSScale() {
-        return getRecentAlerts().stream()
+        Integer fromAlerts = getRecentAlerts().stream()
                 .map(SpaceWeatherAlert::getSScale)
                 .filter(s -> s != null)
-                .max(Integer::compareTo)
-                .orElse(null);
+                .max(Integer::compareTo).orElse(null);
+        return maxNullable(fromAlerts, latestObservedScale().map(NoaaScale::getSScale).orElse(null));
+    }
+
+    /** Max of two possibly-null values; null only when both are null. */
+    static Integer maxNullable(Integer a, Integer b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return Math.max(a, b);
     }
 }

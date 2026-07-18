@@ -43,8 +43,11 @@ public class EarthquakeEvent {
     @Column(nullable = false, length = 20)
     private String source;
 
-    @Column(name = "max_intensity", length = 10)
+    @Column(name = "max_intensity", length = 6)
     private String maxIntensity;
+
+    @Column(name = "max_intensity_rank")
+    private Short maxIntensityRank;
 
     @JsonIgnore
     @JdbcTypeCode(SqlTypes.JSON)

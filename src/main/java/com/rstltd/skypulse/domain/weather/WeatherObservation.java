@@ -22,7 +22,7 @@ public class WeatherObservation {
     private OffsetDateTime time;
 
     @Id
-    @Column(name = "station_code", nullable = false, length = 30)
+    @Column(name = "station_code", nullable = false, length = 40)
     private String stationCode;
 
     @Column(precision = 5, scale = 2)
@@ -42,6 +42,10 @@ public class WeatherObservation {
 
     @Column(precision = 8, scale = 2)
     private BigDecimal precipitation;
+
+    /** CWA "Weather" text (e.g. 晴, 多雲, 陰有雨) — dropped by the old schema. */
+    @Column(name = "weather_desc", length = 50)
+    private String weatherDesc;
 
     @Column(nullable = false, length = 20)
     private String source;

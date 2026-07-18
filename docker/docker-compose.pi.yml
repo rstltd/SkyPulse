@@ -1,0 +1,19 @@
+# Raspberry Pi deployment overlay for docker-compose.prod.yml
+# Usage: docker compose -f docker-compose.prod.yml -f docker-compose.pi.yml --env-file .env up -d --build
+#
+# Why this exists: the Pi's memory cgroup controller is disabled by the Pi 5 firmware
+# (cgroup_disable=memory in /proc/cmdline), so the prod compose's mem_limit is NOT enforced
+# and the JVM's default -XX:MaxRAMPercentage would size the heap off the full 8 GB. We pin an
+# explicit heap ceiling instead. Also supplies the optional MOENV key and a LAN CORS origin.
+services:
+  # Pin TimescaleDB to the exact version the migrated data was dumped from (dev = 2.25.2),
+  # so the pg_dump/pg_restore is same-version (TimescaleDB does not guarantee cross-version
+  # logical restore). Also more reproducible than the floating :latest-pg16 tag.
+  postgres:
+    image: timescale/timescaledb:2.25.2-pg16
+
+  skypulse:
+    environment:
+      JAVA_OPTS: "-Xmx768m -Xms256m"
+      MOENV_API_KEY: ${MOENV_API_KEY:-}
+      SKYPULSE_CORS_ORIGINS: http://192.168.50.196:8080

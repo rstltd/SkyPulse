@@ -71,8 +71,43 @@ skypulse:
       dst-index: "0 0 * * * *"
       solar-wind: "0 */5 * * * *"
       alert: "0 */10 * * * *"
+      noaa-scales: "0 */15 * * * *"
+  swcb:
+    base-url: https://246.ardswc.gov.tw
+    schedule:
+      # Reference baselines change rarely; refresh daily (offset from other jobs).
+      township-alert: "0 20 4 * * *"
+      debris-stream: "0 40 4 * * *"
+  moenv:
+    base-url: https://data.moenv.gov.tw/api/v2
+    api-key: ${MOENV_API_KEY:}
+    reservoir-dataset: GISEPA_P_27
+    schedule:
+      reservoir-coords: "0 50 4 * * *"
   backfill:
     enabled: false
+  context:
+    # Coordinate-query API (P2b). max-auto-radius-km bounds the nearest-station search when the
+    # caller omits radiusKm; quake-radius-km centres the seismic search on the query point.
+    max-auto-radius-km: 50
+    quake-radius-km: 100
+    max-batch-size: 50
+    # Per-domain freshness SLA (seconds): data older than this is flagged stale.
+    freshness:
+      rainfall-seconds: 1800
+      water-level-seconds: 1800
+      seismic-seconds: 900
+      gnss-kp-seconds: 10800
+      gnss-dst-seconds: 7200
+      solar-wind-seconds: 1200
+    signal:
+      # Rainfall warning light: RED at/above the R70 baseline, YELLOW within this fraction of it,
+      # else GREEN. (SWCB's own yellow is forecast-based; this uses observed effective rainfall.)
+      yellow-fraction: 0.8
+  collectors:
+    # Eagerly load slowly-changing reference data (reservoir dimension, SWCB baselines) at
+    # startup so it is available before the first scheduled run. Disabled in tests.
+    eager-startup-load: true
   logging:
     retention-days: 30
     cleanup-cron: "0 0 3 * * *"

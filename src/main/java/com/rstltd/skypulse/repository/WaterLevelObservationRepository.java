@@ -10,4 +10,5 @@ import java.util.List;
 public interface WaterLevelObservationRepository extends JpaRepository<WaterLevelObservation, WaterLevelObservationId> {
     List<WaterLevelObservation> findByStationCodeAndTimeBetweenOrderByTimeAsc(String stationCode, OffsetDateTime start, OffsetDateTime end);
     List<WaterLevelObservation> findByTimeBetween(OffsetDateTime start, OffsetDateTime end);
+    java.util.Optional<WaterLevelObservation> findFirstByStationCodeOrderByTimeDesc(String stationCode);
 }

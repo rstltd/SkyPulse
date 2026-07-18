@@ -70,6 +70,8 @@ const mobileMenuOpen = ref(false)
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: '\u25A3' },
+  { path: '/monitor', label: '\u5EA7\u6A19\u67E5\u8A62', icon: '\u25CE' },
+  { path: '/map', label: '\u5730\u5716\u6230\u60C5\u5BA4', icon: '\u2316' },
   { path: '/weather', label: '\u5929\u6C23/\u96E8\u91CF', icon: '\u2602' },
   { path: '/seismic', label: '\u5730\u9707\u4E8B\u4EF6', icon: '\u2746' },
   { path: '/hydrology', label: '\u6C34\u6587\u8CC7\u6599', icon: '\u2B29' },

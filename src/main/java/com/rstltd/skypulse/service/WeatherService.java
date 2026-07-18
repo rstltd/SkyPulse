@@ -54,7 +54,7 @@ public class WeatherService {
         // non-overlapping, so their sum over the window is the rolling accumulated rainfall.
         // NOTE: revisit in Phase 2 when sampling moves to 10 minutes (precip_1hr would overlap 6x).
         return observations.stream()
-                .map(RainfallObservation::getPrecip1hr)
+                .map(RainfallObservation::getTrailing1hrMm)
                 .filter(p -> p != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
@@ -96,7 +96,7 @@ public class WeatherService {
         // inEvent[i] = true if the 6h rainfall at point i >= 4mm
         boolean[] inEvent = new boolean[allObs.size()];
         for (int i = 0; i < allObs.size(); i++) {
-            BigDecimal p6h = allObs.get(i).getPrecip6hr();
+            BigDecimal p6h = allObs.get(i).getTrailing6hrMm();
             if (p6h != null) {
                 inEvent[i] = p6h.doubleValue() >= EVENT_SPLIT_THRESHOLD;
             } else {
@@ -112,7 +112,7 @@ public class WeatherService {
         OffsetDateTime latestEventStart = null;
 
         for (int i = 0; i < allObs.size(); i++) {
-            BigDecimal precip = allObs.get(i).getPrecip1hr();
+            BigDecimal precip = allObs.get(i).getTrailing1hrMm();
             BigDecimal p = (precip != null && precip.compareTo(BigDecimal.ZERO) > 0) ? precip : BigDecimal.ZERO;
 
             if (inEvent[i]) {
@@ -144,14 +144,14 @@ public class WeatherService {
             // ETR2: R_eff with decay (uses all data up to this point)
             BigDecimal rEff = BigDecimal.ZERO;
             for (int j = 0; j <= i; j++) {
-                BigDecimal precip = allObs.get(j).getPrecip1hr();
+                BigDecimal precip = allObs.get(j).getTrailing1hrMm();
                 if (precip == null || precip.compareTo(BigDecimal.ZERO) <= 0) continue;
                 double hoursAgo = Duration.between(allObs.get(j).getTime(), currentTime).toMinutes() / 60.0;
                 double weight = Math.pow(0.5, hoursAgo / HALF_LIFE.doubleValue());
                 rEff = rEff.add(precip.multiply(BigDecimal.valueOf(weight), MathContext.DECIMAL64));
             }
 
-            BigDecimal intensity = current.getPrecip1hr() != null ? current.getPrecip1hr() : BigDecimal.ZERO;
+            BigDecimal intensity = current.getTrailing1hrMm() != null ? current.getTrailing1hrMm() : BigDecimal.ZERO;
             timeSeries.add(new EffectiveRainfallResponse.TimeSeriesPoint(
                     currentTime,
                     intensity.setScale(2, RoundingMode.HALF_UP),
@@ -195,7 +195,7 @@ public class WeatherService {
         for (int j = index; j >= 0; j--) {
             OffsetDateTime t = sorted.get(j).getTime();
             if (t.isBefore(startTime)) break;
-            BigDecimal p = sorted.get(j).getPrecip1hr();
+            BigDecimal p = sorted.get(j).getTrailing1hrMm();
             if (p != null) sum += p.doubleValue();
         }
         return sum;
