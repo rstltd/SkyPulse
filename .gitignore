@@ -55,3 +55,6 @@ src/main/resources/static/index.html
 ### Test artifacts ###
 .jqwik-database
 target/pit-reports/
+
+### Bulk data dumps (GNSS solutions, etc.) — belong in the DB, not git ###
+schma/*.sql
